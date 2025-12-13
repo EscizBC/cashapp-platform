@@ -1,21 +1,30 @@
-# bot_runner.py - только для запуска бота
+# bot_runner.py
 import asyncio
 import os
 import sys
-
-# Добавляем текущую директорию в путь
 sys.path.insert(0, os.path.dirname(__file__))
 
-async def run_bot():
-    """Запускает только бота без веб-сервера"""
+from main import bot, dp, site_manager
+
+async def main():
+    """Запускает только Telegram бота в режиме polling."""
+    os.makedirs("sites", exist_ok=True)
+    site_manager.load_from_json()
+    
+    print("=" * 60)
+    print("🤖 ЗАПУСК ТЕЛЕГРАМ БОТА (Polling Mode)")
+    print("=" * 60)
+    
+    # КРИТИЧЕСКИ ВАЖНО: удаляем старый вебхук
     try:
-        from main import main as bot_main
-        await bot_main()
+        await bot.delete_webhook(drop_pending_updates=True)
+        print("✅ Старый вебхук удален.")
     except Exception as e:
-        print(f"❌ Ошибка запуска бота: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"⚠️  Предупреждение: {e}")
+    
+    # Запускаем long-polling
+    print("🔄 Бот запущен и ожидает сообщений...")
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    print("🤖 Запуск Telegram бота...")
-    asyncio.run(run_bot())
+    asyncio.run(main())

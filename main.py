@@ -16,17 +16,9 @@ from dataclasses import dataclass, field
 import uuid
 import os
 import base64
-from aiohttp import web
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 # ========== КОНФИГУРАЦИЯ ==========
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8534738281:AAGrXV_OEEKdP1hEGKWNTzD1WzStkF6d2Ys")
-PORT = int(os.getenv("PORT", 5000))
-# Добавьте URL вашего сайта
-SITE_BASE_URL = os.getenv("SITE_BASE_URL", "https://cashapp-platform.onrender.com/")  # <- Ваш сайт
-WEBHOOK_HOST = os.getenv("RENDER_EXTERNAL_HOSTNAME", "")
-WEBHOOK_PATH = f"/webhook/{TELEGRAM_TOKEN}"
-WEBHOOK_URL = f"https://{WEBHOOK_HOST}{WEBHOOK_PATH}" if WEBHOOK_HOST else ""
 
 # Настройка логирования
 logging.basicConfig(
@@ -2966,18 +2958,18 @@ async def open_landing_callback(callback: types.CallbackQuery):
         f.write(html_content)
     
     # Генерируем URL
-    landing_url = f"{SITE_BASE_URL}/{filename}"
+    landing_url = f"/{filename}"
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🌐 Открыть лендинг", url=landing_url)
+            InlineKeyboardButton(text="🌐 Открыть лендинг", callback_data=f"open_landing_file")
         ]
     ])
     
     await callback.message.answer(
         f"🌐 <b>CashApp Pro Landing Page</b>\n\n"
         f"✅ Красивый лендинг создан!\n"
-        f"🔗 <b>Ссылка:</b> <code>{landing_url}</code>\n\n"
+        f"🔗 <b>Файл:</b> <code>{filename}</code>\n\n"
         f"✨ <b>Особенности:</b>\n"
         f"• Современный дизайн с анимациями\n"
         f"• Анимированный фон с частицами\n"
@@ -2987,6 +2979,22 @@ async def open_landing_callback(callback: types.CallbackQuery):
         f"• Пошаговая инструкция",
         reply_markup=keyboard
     )
+
+@dp.callback_query(F.data == "open_landing_file")
+async def open_landing_file_callback(callback: types.CallbackQuery):
+    """Открытие лендинга через документ"""
+    try:
+        with open("sites/landing_page.html", "rb") as file:
+            await bot.send_document(
+                chat_id=callback.from_user.id,
+                document=types.BufferedInputFile(
+                    file=file.read(),
+                    filename="cashapp_pro_landing.html"
+                ),
+                caption="🌐 <b>CashApp Pro Landing Page</b>\n\nСкачайте файл и откройте в браузере"
+            )
+    except Exception as e:
+        await callback.answer(f"Ошибка: {e}")
 
 @dp.callback_query(F.data == "create_site")
 async def create_site_callback(callback: types.CallbackQuery, state: FSMContext):
@@ -3018,12 +3026,12 @@ async def process_site_description(message: types.Message, state: FSMContext):
     # Создаем сайт
     site = site_manager.create_site(site_name, site_description)
     
-    # Генерируем URL
-    site_url = f"{SITE_BASE_URL}/sites/site_{site.site_id}.html"
+    # Получаем путь к файлу
+    filename = f"sites/site_{site.site_id}.html"
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🌐 Открыть дашборд", url=site_url),
+            InlineKeyboardButton(text="📁 Получить файл", callback_data=f"get_site_{site.site_id}"),
             InlineKeyboardButton(text="📝 Добавить аккаунты", callback_data=f"add_to_site_{site.site_id}")
         ],
         [
@@ -3037,7 +3045,7 @@ async def process_site_description(message: types.Message, state: FSMContext):
     await message.answer(
         f"✅ <b>Профессиональный CashApp дашборд создан!</b>\n\n"
         f"💎 <b>Название:</b> {site.name}\n"
-        f"🔗 <b>Ссылка:</b> <code>{site_url}</code>\n"
+        f"📁 <b>Файл:</b> <code>{filename}</code>\n"
         f"📝 <b>Описание:</b> {site.description}\n\n"
         f"✨ <b>Функции:</b>\n"
         f"• Профессиональный CashApp дизайн\n"
@@ -3046,13 +3054,39 @@ async def process_site_description(message: types.Message, state: FSMContext):
         f"• Автоматический логотип CashApp\n"
         f"• Система Ограна для верификации\n\n"
         f"🎯 <b>Рекомендации:</b>\n"
-        f"1. Добавьте аккаунты\n"
-        f"2. Настройте статусы и ярлыки\n"
-        f"3. Используйте Огран для верификации",
+        f"1. Скачайте файл дашборда\n"
+        f"2. Добавьте аккаунты\n"
+        f"3. Настройте статусы и ярлыки\n"
+        f"4. Используйте Огран для верификации",
         reply_markup=keyboard
     )
     
     await state.clear()
+
+@dp.callback_query(F.data.startswith("get_site_"))
+async def get_site_file_callback(callback: types.CallbackQuery):
+    """Получение файла сайта"""
+    site_id = callback.data.replace("get_site_", "")
+    
+    if site_id not in site_manager.sites:
+        await callback.answer("❌ Дашборд не найден")
+        return
+    
+    site = site_manager.sites[site_id]
+    filename = f"sites/site_{site_id}.html"
+    
+    try:
+        with open(filename, "rb") as file:
+            await bot.send_document(
+                chat_id=callback.from_user.id,
+                document=types.BufferedInputFile(
+                    file=file.read(),
+                    filename=f"cashapp_{site.name}.html"
+                ),
+                caption=f"🌐 <b>{site.name}</b>\n\nСкачайте файл и откройте в браузере"
+            )
+    except Exception as e:
+        await callback.answer(f"Ошибка: {e}")
 
 @dp.callback_query(F.data == "add_accounts")
 async def add_accounts_callback(callback: types.CallbackQuery):
@@ -3180,7 +3214,7 @@ async def process_accounts_input(message: types.Message, state: FSMContext):
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🌐 Открыть дашборд", callback_data=f"open_site_{site_id}"),
+            InlineKeyboardButton(text="📁 Получить файл", callback_data=f"get_site_{site_id}"),
             InlineKeyboardButton(text="🔄 Статусы", callback_data=f"site_actions_{site_id}")
         ],
         [
@@ -3246,7 +3280,7 @@ async def site_actions_callback(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="📝 Добавить аккаунты", callback_data=f"add_to_site_{site_id}"),
-            InlineKeyboardButton(text="🌐 Открыть дашборд", callback_data=f"open_site_{site_id}")
+            InlineKeyboardButton(text="📁 Получить файл", callback_data=f"get_site_{site_id}")
         ],
         [
             InlineKeyboardButton(text="🏷️ Управление ярлыками", callback_data=f"manage_tags_site_{site_id}"),
@@ -3287,58 +3321,14 @@ async def site_actions_callback(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data.startswith("open_site_"))
 async def open_site_callback(callback: types.CallbackQuery):
-    """Открытие сайта - выдаем ссылку"""
+    """Открытие сайта - выдаем файл"""
     site_id = callback.data.replace("open_site_", "")
     
     if site_id not in site_manager.sites:
         await callback.answer("❌ Дашборд не найден")
         return
     
-    site = site_manager.sites[site_id]
-    
-    # Генерируем URL для сайта
-    site_url = f"{SITE_BASE_URL}/sites/site_{site_id}.html"
-    
-    stats = site_manager.calculate_stats(site.accounts)
-    
-    ogran_status = site_manager.get_ogran_status(site_id)
-    
-    ogran_info = ""
-    if ogran_status and ogran_status["active"]:
-        ogran_info = (
-            f"\n🔒 <b>Огран АКТИВЕН!</b>\n"
-            f"📊 Прогресс: {ogran_status['current']}/{ogran_status['required']}\n"
-            f"⏳ Осталось добавить: {ogran_status['remaining']} аккаунтов\n"
-            f"⚠️ При открытии сайта появится ограничительный экран\n"
-        )
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="🌐 Открыть в браузере", url=site_url),
-            InlineKeyboardButton(text="📝 Добавить аккаунты", callback_data=f"add_to_site_{site_id}")
-        ],
-        [
-            InlineKeyboardButton(text="🔧 Управление", callback_data=f"site_actions_{site_id}")
-        ]
-    ])
-    
-    await callback.message.answer(
-        f"🌐 <b>CashApp Pro Dashboard</b>\n\n"
-        f"💎 <b>Название:</b> {site.name}\n"
-        f"🔗 <b>Ссылка:</b> <code>{site_url}</code>\n"
-        f"{ogran_info}\n"
-        f"✨ <b>Особенности:</b>\n"
-        f"• Профессиональный CashApp дизайн\n"
-        f"• Полная адаптивность (ПК + телефон)\n"
-        f"• Анимации и эффекты\n"
-        f"• Автоматический логотип CashApp\n"
-        f"• Система Ограна для верификации\n\n"
-        f"📊 <b>Статистика:</b>\n"
-        f"• Аккаунтов: {stats['total']}\n"
-        f"• ✅ Valid: {stats['valid']}\n"
-        f"• 🔄 Processing: {stats['processing']}",
-        reply_markup=keyboard
-    )
+    await get_site_file_callback(callback)
 
 @dp.callback_query(F.data == "manage_ogran")
 async def manage_ogran_callback(callback: types.CallbackQuery):
@@ -3515,7 +3505,7 @@ async def process_ogran_accounts(message: types.Message, state: FSMContext):
                 f"• Прогресс отображается в реальном времени\n"
                 f"• После выполнения условий можно снять Огран\n\n"
                 f"🎯 <b>Следующие шаги:</b>\n"
-                f"1. Откройте дашборд для проверки\n"
+                f"1. Скачайте обновленный файл дашборда\n"
                 f"2. Добавляйте аккаунты через бота\n"
                 f"3. Следите за прогрессом"
             )
@@ -3566,7 +3556,7 @@ async def ogran_status_callback(callback: types.CallbackQuery):
         status_text += f"🎯 <b>Следующие шаги:</b>\n"
         status_text += f"• Перейдите в меню Ограна\n"
         status_text += f"• Нажмите 'Снять Огран'\n"
-        status_text += f"• Сайт станет доступен без ограничений"
+        status_text += f"• Скачайте обновленный файл дашборда"
     else:
         status_text += f"⚠️ <b>Ограничение активно</b>\n\n"
         status_text += f"🎯 <b>Как снять Огран:</b>\n"
@@ -3577,7 +3567,7 @@ async def ogran_status_callback(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="📝 Добавить аккаунты", callback_data=f"add_to_site_{site_id}"),
-            InlineKeyboardButton(text="🌐 Открыть дашборд", callback_data=f"open_site_{site_id}")
+            InlineKeyboardButton(text="📁 Получить файл", callback_data=f"get_site_{site_id}")
         ],
         [
             InlineKeyboardButton(text="🔙 Назад", callback_data=f"ogran_menu_{site_id}")
@@ -3622,7 +3612,7 @@ async def remove_ogran_callback(callback: types.CallbackQuery):
             f"• Все функции доступны\n"
             f"• Можно свободно пользоваться сайтом\n\n"
             f"🎯 <b>Следующие шаги:</b>\n"
-            f"• Откройте дашборд для проверки\n"
+            f"• Скачайте обновленный файл дашборда\n"
             f"• Продолжайте добавлять аккаунты\n"
             f"• Настройте статусы и ярлыки"
         )
@@ -3712,47 +3702,23 @@ async def add_to_site_callback(callback: types.CallbackQuery, state: FSMContext)
     )
     await state.set_state(BotStates.waiting_for_accounts)
 
-# ========== НАСТРОЙКА ДЛЯ RENDER ==========
-async def on_startup(dispatcher: Dispatcher):
-    """Действия при запуске бота"""
-    await bot.set_webhook(
-        url=WEBHOOK_URL,
-        drop_pending_updates=True
-    )
-    logger.info(f"🤖 Бот запущен на вебхуке: {WEBHOOK_URL}")
-
-async def on_shutdown(dispatcher: Dispatcher):
-    """Действия при остановке бота"""
-    await bot.delete_webhook()
-    logger.info("🤖 Бот остановлен")
-
 async def main():
     """Основная функция - только логика бота"""
     os.makedirs("sites", exist_ok=True)
     site_manager.load_from_json()
     
     print("🤖 Telegram Bot - CashApp Pro Dashboard")
+    print("🔄 Режим polling (локальная разработка)")
     
-    if WEBHOOK_HOST:
-        print(f"🌐 Режим вебхука для: {WEBHOOK_HOST}")
-        print(f"🔗 Вебхук: {WEBHOOK_URL}")
-        print("✅ Бот готов к работе через вебхук")
-        
-        # Бесконечный цикл чтобы бот не завершился
-        print("🔄 Ожидание вебхук запросов...")
-        await asyncio.Event().wait()
-    else:
-        print("🔄 Режим polling (локальная разработка)")
-        
-        # Удаляем вебхук для polling
-        try:
-            await bot.delete_webhook(drop_pending_updates=True)
-            print("✅ Вебхук удален для polling")
-        except:
-            pass
-        
-        # Запускаем polling
-        await dp.start_polling(bot)
+    # Удаляем вебхук для polling
+    try:
+        await bot.delete_webhook(drop_pending_updates=True)
+        print("✅ Вебхук удален для polling")
+    except:
+        pass
+    
+    # Запускаем polling
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
