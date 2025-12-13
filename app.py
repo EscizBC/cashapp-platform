@@ -1,11 +1,11 @@
-# app.py - полная версия с вебхуком
+# app.py
 import os
 import sys
-from flask import Flask, send_from_directory, request
 import asyncio
+from flask import Flask, send_from_directory, request, jsonify
 import threading
 
-# Импортируем бота из main
+# Добавляем текущую директорию в путь
 sys.path.insert(0, os.path.dirname(__file__))
 
 # Конфигурация
@@ -16,40 +16,15 @@ WEBHOOK_URL = f"https://{WEBHOOK_HOST}{WEBHOOK_PATH}" if WEBHOOK_HOST else ""
 
 app = Flask(__name__)
 
-# Глобальные переменные для бота
-bot = None
-dp = None
-
-def init_bot():
-    """Инициализация бота в фоновом режиме"""
-    global bot, dp
-    
+# Импортируем бота (ленивая загрузка)
+def get_bot_and_dp():
+    """Ленивая загрузка бота и диспетчера"""
     try:
-        from main import bot as main_bot, dp as main_dp
-        bot = main_bot
-        dp = main_dp
-        print("✅ Бот инициализирован в app.py")
-        
-        # Устанавливаем вебхук при запуске
-        if WEBHOOK_HOST and bot:
-            async def set_webhook():
-                try:
-                    await bot.delete_webhook(drop_pending_updates=True)
-                    await bot.set_webhook(
-                        url=WEBHOOK_URL,
-                        drop_pending_updates=True
-                    )
-                    print(f"✅ Вебхук установлен: {WEBHOOK_URL}")
-                except Exception as e:
-                    print(f"❌ Ошибка установки вебхука: {e}")
-            
-            # Запускаем асинхронно
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(set_webhook())
-            
-    except Exception as e:
-        print(f"⚠️ Не удалось инициализировать бота: {e}")
+        from main import bot, dp
+        return bot, dp
+    except ImportError as e:
+        print(f"❌ Ошибка импорта бота: {e}")
+        return None, None
 
 # Главная страница
 @app.route('/')
@@ -58,55 +33,116 @@ def index():
         with open('index.html', 'r', encoding='utf-8') as f:
             return f.read()
     except FileNotFoundError:
-        return """
+        return f"""
         <!DOCTYPE html>
         <html>
-        <head><title>CashApp Pro</title>
-        <style>body{font-family:Arial;margin:40px;background:#0A0F0A;color:#fff;}
-        .container{max-width:800px;margin:0 auto;}h1{color:#00D632;}
-        .btn{display:inline-block;padding:10px 20px;background:#00D632;color:white;
-        text-decoration:none;border-radius:5px;margin:10px;}</style>
+        <head>
+            <title>CashApp Pro Dashboard</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 40px; background: #0A0F0A; color: #fff; }}
+                .container {{ max-width: 800px; margin: 0 auto; }}
+                h1 {{ color: #00D632; }}
+                .status {{ padding: 10px; margin: 10px 0; border-radius: 5px; }}
+                .success {{ background: #00D63220; border: 1px solid #00D632; }}
+                .error {{ background: #ff444420; border: 1px solid #ff4444; }}
+            </style>
         </head>
-        <body><div class="container">
-        <h1>CashApp Pro Dashboard Manager</h1>
-        <p>🤖 Бот работает: <span style="color:#00D632">●</span> Активен</p>
-        <p>🌐 Вебхук: {}</p>
-        <a href="/sites" class="btn">Просмотреть дашборды</a>
-        <a href="/landing" class="btn">Лендинг</a>
-        </div></body></html>
-        """.format("Настроен" if WEBHOOK_HOST else "Не настроен")
+        <body>
+            <div class="container">
+                <h1>CashApp Pro Dashboard Manager</h1>
+                <div class="status success">
+                    <strong>Статус:</strong> Система работает
+                </div>
+                <p>Telegram бот: {'Активен' if WEBHOOK_HOST else 'В разработке'}</p>
+                <p>Вебхук: {WEBHOOK_URL if WEBHOOK_HOST else 'Не настроен'}</p>
+                <p><a href="/sites">Просмотреть дашборды</a> | <a href="/landing">Лендинг</a></p>
+            </div>
+        </body>
+        </html>
+        """
 
-# Вебхук для Telegram
+# Вебхук для Telegram - СИНХРОННАЯ версия
 @app.route(WEBHOOK_PATH, methods=['POST'])
-async def telegram_webhook():
-    """Обработчик вебхука от Telegram"""
-    if not bot or not dp:
-        return 'Bot not initialized', 503
-    
+def telegram_webhook():
+    """Синхронный обработчик вебхука от Telegram"""
     try:
-        # Получаем обновление
+        # Получаем данные
         update_data = request.get_json()
         
-        # Обрабатываем через диспетчер
+        if not update_data:
+            return jsonify({"error": "No JSON data"}), 400
+        
+        # Лениво загружаем бота и dp
+        bot, dp = get_bot_and_dp()
+        
+        if not bot or not dp:
+            return jsonify({"error": "Bot not initialized"}), 503
+        
+        # Запускаем асинхронную обработку
         from aiogram.types import Update
+        
+        # Создаем event loop для асинхронной обработки
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Создаем объект Update и обрабатываем
         update = Update(**update_data)
         
         # Запускаем обработку
-        await dp.feed_update(bot, update)
+        loop.run_until_complete(dp.feed_update(bot, update))
         
         return '', 200
+        
     except Exception as e:
         print(f"❌ Ошибка обработки вебхука: {e}")
         import traceback
         traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+# Альтернативный вебхук - простая версия
+@app.route('/webhook/simple', methods=['POST'])
+def telegram_webhook_simple():
+    """Простой вебхук - только подтверждение получения"""
+    try:
+        data = request.get_json()
+        print(f"📩 Получен вебхук: {data}")
+        
+        # Можно асинхронно обработать в фоне
+        if data:
+            # Запускаем в отдельном потоке
+            threading.Thread(
+                target=process_webhook_background,
+                args=(data,),
+                daemon=True
+            ).start()
+        
+        return '', 200
+    except Exception as e:
+        print(f"❌ Ошибка в простом вебхуке: {e}")
         return '', 500
+
+def process_webhook_background(update_data):
+    """Обработка вебхука в фоновом режиме"""
+    try:
+        bot, dp = get_bot_and_dp()
+        if bot and dp:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            from aiogram.types import Update
+            update = Update(**update_data)
+            
+            loop.run_until_complete(dp.feed_update(bot, update))
+            print("✅ Вебхук обработан в фоне")
+    except Exception as e:
+        print(f"❌ Ошибка фоновой обработки: {e}")
 
 # Список дашбордов
 @app.route('/sites')
 def sites_list():
     try:
         from main import site_manager
-        sites = site_manager.sites if hasattr(site_manager, 'sites') else {}
+        sites = site_manager.sites
     except:
         sites = {}
     
@@ -114,8 +150,8 @@ def sites_list():
     <style>body{font-family:Arial;margin:40px;background:#0A0F0A;color:#fff;}
     .container{max-width:1200px;margin:0 auto;}h1{color:#00D632;}
     .site-card{background:#111511;padding:20px;margin:15px 0;border-radius:10px;border:1px solid #1C231C;}
-    .btn{padding:8px 16px;background:#00D632;color:white;text-decoration:none;border-radius:5px;margin:5px;display:inline-block;}</style>
-    </head><body><div class="container"><h1>Список дашбордов</h1>"""
+    .btn{padding:8px 16px;background:#00D632;color:white;text-decoration:none;border-radius:5px;margin:5px;display:inline-block;}
+    </style></head><body><div class="container"><h1>Список дашбордов</h1>"""
     
     if not sites:
         html += "<p>Нет созданных дашбордов</p>"
@@ -149,20 +185,80 @@ def serve_landing():
 # Health check
 @app.route('/health')
 def health():
-    return {"status": "ok", "bot": "active" if bot else "inactive", "webhook": WEBHOOK_URL}, 200
+    bot, dp = get_bot_and_dp()
+    return {
+        "status": "ok",
+        "bot_initialized": bool(bot and dp),
+        "webhook_url": WEBHOOK_URL,
+        "webhook_path": WEBHOOK_PATH
+    }, 200
 
-# Проверка вебхука
+# Тестовая страница для проверки вебхука
 @app.route('/webhook_test')
 def webhook_test():
     return f"""
-    <h1>Проверка вебхука</h1>
-    <p>Токен: {TELEGRAM_TOKEN[:10]}...</p>
-    <p>Хост: {WEBHOOK_HOST}</p>
-    <p>Полный URL: {WEBHOOK_URL}</p>
-    <p>Путь: {WEBHOOK_PATH}</p>
-    <a href="/">На главную</a>
+    <html>
+    <head><title>Webhook Test</title></head>
+    <body>
+        <h1>Webhook Test Page</h1>
+        <p>Token: {TELEGRAM_TOKEN[:15]}...</p>
+        <p>Webhook URL: {WEBHOOK_URL}</p>
+        <p>Webhook Path: {WEBHOOK_PATH}</p>
+        <p>Host: {WEBHOOK_HOST}</p>
+        <p><a href="/">На главную</a></p>
+    </body>
+    </html>
     """
 
-# Инициализируем бота при запуске
-print("🚀 Инициализация Flask приложения...")
-init_bot()
+# Функция для установки вебхука при запуске
+def setup_webhook_on_start():
+    """Установка вебхука при запуске приложения"""
+    if not WEBHOOK_HOST:
+        print("⚠️  WEBHOOK_HOST не установлен, вебхук не будет настроен")
+        return
+    
+    try:
+        # Импортируем бота
+        bot, _ = get_bot_and_dp()
+        if not bot:
+            print("❌ Бот не инициализирован для установки вебхука")
+            return
+        
+        # Устанавливаем вебхук асинхронно
+        async def set_webhook_async():
+            try:
+                await bot.delete_webhook(drop_pending_updates=True)
+                await bot.set_webhook(
+                    url=WEBHOOK_URL,
+                    drop_pending_updates=True
+                )
+                print(f"✅ Вебхук установлен: {WEBHOOK_URL}")
+            except Exception as e:
+                print(f"❌ Ошибка установки вебхука: {e}")
+        
+        # Запускаем в отдельном потоке
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(set_webhook_async())
+        
+    except Exception as e:
+        print(f"❌ Ошибка при настройке вебхука: {e}")
+
+# Инициализация при старте
+print("=" * 60)
+print("🚀 Запуск Flask приложения")
+print("=" * 60)
+print(f"🤖 Токен: {TELEGRAM_TOKEN[:10]}...")
+print(f"🌐 Хост: {WEBHOOK_HOST or 'Не указан'}")
+print(f"🔗 Вебхук URL: {WEBHOOK_URL or 'Не настроен'}")
+print("=" * 60)
+
+# Устанавливаем вебхук при запуске (если указан хост)
+if WEBHOOK_HOST:
+    # Запускаем в отдельном потоке с задержкой
+    import time
+    threading.Timer(5.0, setup_webhook_on_start).start()
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
