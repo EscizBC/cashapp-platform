@@ -1,9 +1,10 @@
-# app.py
+# app.py - исправленная версия
 import os
 import sys
 import asyncio
-from flask import Flask, send_from_directory, request, jsonify
 import threading
+from concurrent.futures import ThreadPoolExecutor
+from flask import Flask, send_from_directory, request, jsonify
 
 # Добавляем текущую директорию в путь
 sys.path.insert(0, os.path.dirname(__file__))
@@ -15,6 +16,9 @@ WEBHOOK_PATH = f"/webhook/{TELEGRAM_TOKEN}"
 WEBHOOK_URL = f"https://{WEBHOOK_HOST}{WEBHOOK_PATH}" if WEBHOOK_HOST else ""
 
 app = Flask(__name__)
+
+# Глобальный executor для обработки вебхуков
+executor = ThreadPoolExecutor(max_workers=3)
 
 # Импортируем бота (ленивая загрузка)
 def get_bot_and_dp():
@@ -44,7 +48,6 @@ def index():
                 h1 {{ color: #00D632; }}
                 .status {{ padding: 10px; margin: 10px 0; border-radius: 5px; }}
                 .success {{ background: #00D63220; border: 1px solid #00D632; }}
-                .error {{ background: #ff444420; border: 1px solid #ff4444; }}
             </style>
         </head>
         <body>
@@ -61,107 +64,59 @@ def index():
         </html>
         """
 
-# Вебхук для Telegram - СИНХРОННАЯ версия
+# ВЕБХУК для Telegram - ОСНОВНОЙ ОБРАБОТЧИК
 @app.route(WEBHOOK_PATH, methods=['POST'])
-def telegram_webhook():
-    """Синхронный обработчик вебхука от Telegram"""
+def handle_telegram_webhook():  # ИЗМЕНИЛ ИМЯ ФУНКЦИИ
+    """Основной обработчик вебхука от Telegram"""
     try:
-        # Получаем данные
         update_data = request.get_json()
         
         if not update_data:
             return jsonify({"error": "No JSON data"}), 400
         
-        # Лениво загружаем бота и dp
-        bot, dp = get_bot_and_dp()
+        # Запускаем обработку в фоне через ThreadPoolExecutor
+        executor.submit(process_webhook_background, update_data)
         
-        if not bot or not dp:
-            return jsonify({"error": "Bot not initialized"}), 503
+        return '', 200
         
-        # Запускаем асинхронную обработку
+    except Exception as e:
+        print(f"❌ Ошибка получения вебхука: {e}")
+        return jsonify({"error": str(e)}), 500
+
+def process_webhook_background(update_data):
+    """Фоновая обработка вебхука в отдельном потоке"""
+    try:
+        # Импортируем здесь, чтобы избежать проблем с импортами
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(__file__))
+        
+        from main import bot, dp
         from aiogram.types import Update
         
-        # Создаем event loop для асинхронной обработки
+        # Создаем новую event loop для этого потока
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        # Создаем объект Update и обрабатываем
-        update = Update(**update_data)
-        
-        # Запускаем обработку
-        loop.run_until_complete(dp.feed_update(bot, update))
-        
-        return '', 200
-        
-    except Exception as e:
-        print(f"❌ Ошибка обработки вебхука: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
-# Альтернативный вебхук - простая версия
-@app.route(WEBHOOK_PATH, methods=['POST'])
-def telegram_webhook():
-    """Синхронный обработчик вебхука от Telegram"""
-    try:
-        # Получаем данные
-        update_data = request.get_json()
-        
-        if not update_data:
-            return jsonify({"error": "No JSON data"}), 400
-        
-        # Используем asyncio.run() для запуска асинхронного кода
-        # Это создаст новую event loop и корректно закроет ее
-        asyncio.run(process_update_async(update_data))
-        
-        return '', 200
-        
-    except Exception as e:
-        print(f"❌ Ошибка обработки вебхука: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
-async def process_update_async(update_data):
-    """Асинхронная обработка обновления"""
-    try:
-        bot, dp = get_bot_and_dp()
-        
-        if not bot or not dp:
-            print("❌ Бот или диспетчер не инициализированы")
-            return
-        
-        from aiogram.types import Update
         update = Update(**update_data)
         
         # Обрабатываем обновление
-        await dp.feed_update(bot, update)
-        print("✅ Обновление обработано")
+        loop.run_until_complete(dp.feed_update(bot, update))
+        
+        print(f"✅ Вебхук обработан в фоне")
+        
+        # Аккуратно закрываем loop
+        loop.stop()
+        loop.close()
         
     except Exception as e:
-        print(f"❌ Ошибка в process_update_async: {e}")
+        print(f"❌ Ошибка фоновой обработки: {e}")
         import traceback
         traceback.print_exc()
 
-def process_webhook_background(update_data):
-    """Обработка вебхука в фоновом режиме"""
-    try:
-        bot, dp = get_bot_and_dp()
-        if bot and dp:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            from aiogram.types import Update
-            update = Update(**update_data)
-            
-            loop.run_until_complete(dp.feed_update(bot, update))
-            print("✅ Вебхук обработан в фоне")
-    except Exception as e:
-        print(f"❌ Ошибка фоновой обработки: {e}")
-
 # Список дашбордов
 @app.route('/sites')
-def sites_list():
+def list_sites():  # ИЗМЕНИЛ ИМЯ ФУНКЦИИ
     try:
         from main import site_manager
         sites = site_manager.sites
@@ -197,16 +152,16 @@ def sites_list():
 
 # Статические файлы
 @app.route('/sites/<path:filename>')
-def serve_site(filename):
+def serve_site_file(filename):  # ИЗМЕНИЛ ИМЯ ФУНКЦИИ
     return send_from_directory('sites', filename)
 
 @app.route('/landing')
-def serve_landing():
+def serve_landing_page():  # ИЗМЕНИЛ ИМЯ ФУНКЦИИ
     return send_from_directory('sites', 'landing_page.html')
 
 # Health check
 @app.route('/health')
-def health():
+def health_check():  # ИЗМЕНИЛ ИМЯ ФУНКЦИИ
     bot, dp = get_bot_and_dp()
     return {
         "status": "ok",
@@ -217,7 +172,7 @@ def health():
 
 # Тестовая страница для проверки вебхука
 @app.route('/webhook_test')
-def webhook_test():
+def webhook_test_page():  # ИЗМЕНИЛ ИМЯ ФУНКЦИИ
     return f"""
     <html>
     <head><title>Webhook Test</title></head>
@@ -278,7 +233,6 @@ print("=" * 60)
 # Устанавливаем вебхук при запуске (если указан хост)
 if WEBHOOK_HOST:
     # Запускаем в отдельном потоке с задержкой
-    import time
     threading.Timer(5.0, setup_webhook_on_start).start()
 
 if __name__ == "__main__":
