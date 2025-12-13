@@ -22,6 +22,8 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 # ========== КОНФИГУРАЦИЯ ==========
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8534738281:AAGrXV_OEEKdP1hEGKWNTzD1WzStkF6d2Ys")
 PORT = int(os.getenv("PORT", 5000))
+# Добавьте URL вашего сайта
+SITE_BASE_URL = os.getenv("SITE_BASE_URL", "https://cashapp-platform.onrender.com/")  # <- Ваш сайт
 WEBHOOK_HOST = os.getenv("RENDER_EXTERNAL_HOSTNAME", "")
 WEBHOOK_PATH = f"/webhook/{TELEGRAM_TOKEN}"
 WEBHOOK_URL = f"https://{WEBHOOK_HOST}{WEBHOOK_PATH}" if WEBHOOK_HOST else ""
@@ -2963,19 +2965,27 @@ async def open_landing_callback(callback: types.CallbackQuery):
     with open(filename, 'w', encoding='utf-8') as f:
         f.write(html_content)
     
-    file_path = os.path.abspath(filename)
+    # Генерируем URL
+    landing_url = f"{SITE_BASE_URL}/{filename}"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🌐 Открыть лендинг", url=landing_url)
+        ]
+    ])
     
     await callback.message.answer(
         f"🌐 <b>CashApp Pro Landing Page</b>\n\n"
-        f"✅ Красивый лендинг создан!\n\n"
+        f"✅ Красивый лендинг создан!\n"
+        f"🔗 <b>Ссылка:</b> <code>{landing_url}</code>\n\n"
         f"✨ <b>Особенности:</b>\n"
         f"• Современный дизайн с анимациями\n"
         f"• Анимированный фон с частицами\n"
         f"• Полная адаптивность\n"
         f"• Демо превью дашборда\n"
         f"• Секция с возможностями\n"
-        f"• Пошаговая инструкция\n\n"
-        f"📍 <b>Путь к файлу:</b>\n<code>{file_path}</code>"
+        f"• Пошаговая инструкция",
+        reply_markup=keyboard
     )
 
 @dp.callback_query(F.data == "create_site")
@@ -3008,10 +3018,13 @@ async def process_site_description(message: types.Message, state: FSMContext):
     # Создаем сайт
     site = site_manager.create_site(site_name, site_description)
     
+    # Генерируем URL
+    site_url = f"{SITE_BASE_URL}/sites/site_{site.site_id}.html"
+    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="📝 Добавить аккаунты", callback_data=f"add_to_site_{site.site_id}"),
-            InlineKeyboardButton(text="🌐 Открыть дашборд", callback_data=f"open_site_{site.site_id}")
+            InlineKeyboardButton(text="🌐 Открыть дашборд", url=site_url),
+            InlineKeyboardButton(text="📝 Добавить аккаунты", callback_data=f"add_to_site_{site.site_id}")
         ],
         [
             InlineKeyboardButton(text="🔧 Управление", callback_data=f"site_actions_{site.site_id}")
@@ -3024,12 +3037,14 @@ async def process_site_description(message: types.Message, state: FSMContext):
     await message.answer(
         f"✅ <b>Профессиональный CashApp дашборд создан!</b>\n\n"
         f"💎 <b>Название:</b> {site.name}\n"
-        f"📝 <b>Описание:</b> {site.description}\n"
-        f"🎨 <b>Стиль:</b> Pro CashApp дизайн\n"
-        f"📱 <b>Адаптивность:</b> ПК + телефон\n"
-        f"✨ <b>Анимации:</b> Включены\n"
-        f"🖼️ <b>Логотип:</b> Автоматически загружен\n"
-        f"🔒 <b>Огран:</b> Доступен в меню управления\n\n"
+        f"🔗 <b>Ссылка:</b> <code>{site_url}</code>\n"
+        f"📝 <b>Описание:</b> {site.description}\n\n"
+        f"✨ <b>Функции:</b>\n"
+        f"• Профессиональный CashApp дизайн\n"
+        f"• Полная адаптивность (ПК + телефон)\n"
+        f"• Анимации и эффекты\n"
+        f"• Автоматический логотип CashApp\n"
+        f"• Система Ограна для верификации\n\n"
         f"🎯 <b>Рекомендации:</b>\n"
         f"1. Добавьте аккаунты\n"
         f"2. Настройте статусы и ярлыки\n"
@@ -3272,7 +3287,7 @@ async def site_actions_callback(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data.startswith("open_site_"))
 async def open_site_callback(callback: types.CallbackQuery):
-    """Открытие сайта"""
+    """Открытие сайта - выдаем ссылку"""
     site_id = callback.data.replace("open_site_", "")
     
     if site_id not in site_manager.sites:
@@ -3280,13 +3295,11 @@ async def open_site_callback(callback: types.CallbackQuery):
         return
     
     site = site_manager.sites[site_id]
-    filename = f"sites/site_{site_id}.html"
     
-    if not os.path.exists(filename):
-        site_manager.save_site_html(site)
+    # Генерируем URL для сайта
+    site_url = f"{SITE_BASE_URL}/sites/site_{site_id}.html"
     
     stats = site_manager.calculate_stats(site.accounts)
-    file_path = os.path.abspath(filename)
     
     ogran_status = site_manager.get_ogran_status(site_id)
     
@@ -3299,10 +3312,20 @@ async def open_site_callback(callback: types.CallbackQuery):
             f"⚠️ При открытии сайта появится ограничительный экран\n"
         )
     
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🌐 Открыть в браузере", url=site_url),
+            InlineKeyboardButton(text="📝 Добавить аккаунты", callback_data=f"add_to_site_{site_id}")
+        ],
+        [
+            InlineKeyboardButton(text="🔧 Управление", callback_data=f"site_actions_{site_id}")
+        ]
+    ])
+    
     await callback.message.answer(
         f"🌐 <b>CashApp Pro Dashboard</b>\n\n"
         f"💎 <b>Название:</b> {site.name}\n"
-        f"📁 <b>Файл:</b> {filename}\n"
+        f"🔗 <b>Ссылка:</b> <code>{site_url}</code>\n"
         f"{ogran_info}\n"
         f"✨ <b>Особенности:</b>\n"
         f"• Профессиональный CashApp дизайн\n"
@@ -3310,11 +3333,11 @@ async def open_site_callback(callback: types.CallbackQuery):
         f"• Анимации и эффекты\n"
         f"• Автоматический логотип CashApp\n"
         f"• Система Ограна для верификации\n\n"
-        f"📍 <b>Путь к файлу:</b>\n<code>{file_path}</code>\n\n"
-        f"📋 <b>Как открыть:</b>\n"
-        f"1. Скопируйте путь\n"
-        f"2. Откройте в браузере\n"
-        f"3. Работает на ПК и телефоне"
+        f"📊 <b>Статистика:</b>\n"
+        f"• Аккаунтов: {stats['total']}\n"
+        f"• ✅ Valid: {stats['valid']}\n"
+        f"• 🔄 Processing: {stats['processing']}",
+        reply_markup=keyboard
     )
 
 @dp.callback_query(F.data == "manage_ogran")

@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: cashapp-pro-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: TELEGRAM_TOKEN
+        sync: false
+      - key: PORT
+        value: 5000
+    healthCheckPath: /health
+    autoDeploy: true
