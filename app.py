@@ -100,26 +100,48 @@ def telegram_webhook():
         return jsonify({"error": str(e)}), 500
 
 # Альтернативный вебхук - простая версия
-@app.route('/webhook/simple', methods=['POST'])
-def telegram_webhook_simple():
-    """Простой вебхук - только подтверждение получения"""
+@app.route(WEBHOOK_PATH, methods=['POST'])
+def telegram_webhook():
+    """Синхронный обработчик вебхука от Telegram"""
     try:
-        data = request.get_json()
-        print(f"📩 Получен вебхук: {data}")
+        # Получаем данные
+        update_data = request.get_json()
         
-        # Можно асинхронно обработать в фоне
-        if data:
-            # Запускаем в отдельном потоке
-            threading.Thread(
-                target=process_webhook_background,
-                args=(data,),
-                daemon=True
-            ).start()
+        if not update_data:
+            return jsonify({"error": "No JSON data"}), 400
+        
+        # Используем asyncio.run() для запуска асинхронного кода
+        # Это создаст новую event loop и корректно закроет ее
+        asyncio.run(process_update_async(update_data))
         
         return '', 200
+        
     except Exception as e:
-        print(f"❌ Ошибка в простом вебхуке: {e}")
-        return '', 500
+        print(f"❌ Ошибка обработки вебхука: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+async def process_update_async(update_data):
+    """Асинхронная обработка обновления"""
+    try:
+        bot, dp = get_bot_and_dp()
+        
+        if not bot or not dp:
+            print("❌ Бот или диспетчер не инициализированы")
+            return
+        
+        from aiogram.types import Update
+        update = Update(**update_data)
+        
+        # Обрабатываем обновление
+        await dp.feed_update(bot, update)
+        print("✅ Обновление обработано")
+        
+    except Exception as e:
+        print(f"❌ Ошибка в process_update_async: {e}")
+        import traceback
+        traceback.print_exc()
 
 def process_webhook_background(update_data):
     """Обработка вебхука в фоновом режиме"""
