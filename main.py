@@ -3743,47 +3743,42 @@ async def main():
     print(f"📊 Загружено дашбордов: {len(site_manager.sites)}")
     print("=" * 60)
     
-    # УДАЛЯЕМ ВЕБХУК перед запуском polling
-    try:
-        await bot.delete_webhook(drop_pending_updates=True)
-        print("✅ Вебхук удален, переходим в polling режим")
-    except Exception as e:
-        print(f"⚠️ Ошибка при удалении вебхука: {e}")
-    
+    # НА РЕНДЕР НЕ ЗАПУСКАЕМ ВЕБ-СЕРВЕР, только бота
+    # Проверяем, запускаем ли мы на Render (где есть WEBHOOK_HOST)
     if WEBHOOK_HOST:
-        # Режим вебхука для Render
-        dp.startup.register(on_startup)
-        dp.shutdown.register(on_shutdown)
+        print(f"🌐 Режим вебхука для Render: {WEBHOOK_URL}")
+        print(f"⚠️  Веб-сервер уже запущен через gunicorn, запускаем только бота...")
         
-        app = web.Application()
-        webhook_requests_handler = SimpleRequestHandler(
-            dispatcher=dp,
-            bot=bot,
-            secret_token=TELEGRAM_TOKEN
-        )
+        # На Render мы НЕ запускаем веб-сервер, только бота
+        # Бот будет работать в фоновом режиме
         
-        webhook_requests_handler.register(app, path=WEBHOOK_PATH)
-        setup_application(app, dp, bot=bot)
+        # Устанавливаем вебхук
+        try:
+            await bot.set_webhook(
+                url=WEBHOOK_URL,
+                drop_pending_updates=True
+            )
+            print(f"✅ Вебхук установлен: {WEBHOOK_URL}")
+        except Exception as e:
+            print(f"❌ Ошибка установки вебхука: {e}")
         
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, "0.0.0.0", PORT)
-        await site.start()
+        # Бесконечный цикл чтобы бот не завершился
+        print("🔄 Бот работает в фоновом режиме...")
+        while True:
+            await asyncio.sleep(3600)  # Спим 1 час
         
-        logger.info(f"🌐 Веб-сервер запущен на порту {PORT}")
-        logger.info(f"🔗 Вебхук: {WEBHOOK_URL}")
-        
-        # Бесконечный цикл для поддержания работы
-        await asyncio.Event().wait()
     else:
         # Режим polling для локальной разработки
-        # Убедимся, что вебхук удален
+        print("🔄 Запуск в polling режиме...")
+        
+        # Удаляем вебхук если был
         try:
             await bot.delete_webhook(drop_pending_updates=True)
+            print("✅ Вебхук удален")
         except:
             pass
         
-        print("🔄 Запуск в polling режиме...")
+        # Запускаем polling
         await dp.start_polling(bot)
 
 if __name__ == "__main__":
