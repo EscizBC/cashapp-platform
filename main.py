@@ -3596,10 +3596,10 @@ async def select_site_for_tags_callback(callback: types.CallbackQuery):
 async def select_account_for_tags_callback(callback: types.CallbackQuery, state: FSMContext):
     """Выбор аккаунта для управления ярлыками"""
     data_parts = callback.data.replace("select_account_", "").split("|")
-        if len(data_parts) == 2:
-            site_id = data_parts[0]
-            account_index = int(data_parts[1])
-        return
+    if len(data_parts) == 2:
+        site_id = data_parts[0]
+        account_index = int(data_parts[1])
+        
     
     site_id = data_parts[0]
     account_index = int(data_parts[1])
