@@ -3823,6 +3823,166 @@ async def process_custom_tag(message: types.Message, state: FSMContext):
     await state.clear()
 
 # ========== УПРАВЛЕНИЕ СТАТУСАМИ ==========
+
+@dp.callback_query(F.data.startswith("select_account_status_"))
+async def select_account_for_status_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Выбор аккаунта для управления статусами"""
+    try:
+        # Убираем префикс
+        data_str = callback.data.replace("select_account_status_", "")
+        
+        # Проверяем оба возможных формата
+        if "|" in data_str:
+            # Формат: site_id|account_index
+            parts = data_str.split("|")
+            if len(parts) != 2:
+                await callback.answer("❌ Ошибка: неверный формат данных")
+                return
+            site_id = parts[0]
+            account_index = int(parts[1])
+        elif "_" in data_str:
+            # Формат: site_id_account_index
+            # Находим последний разделитель _
+            last_underscore = data_str.rfind("_")
+            if last_underscore == -1:
+                await callback.answer("❌ Ошибка: неверный формат данных")
+                return
+            site_id = data_str[:last_underscore]
+            account_index = int(data_str[last_underscore+1:])
+        else:
+            await callback.answer("❌ Ошибка: неверный формат данных")
+            return
+        
+        if not site_id:
+            await callback.answer("❌ Ошибка: не найден ID сайта")
+            return
+        
+        if site_id not in site_manager.sites:
+            await callback.answer("❌ Дашборд не найден")
+            return
+        
+        site = site_manager.sites[site_id]
+        
+        if account_index >= len(site.accounts):
+            await callback.answer("❌ Аккаунт не найден")
+            return
+        
+        account = site.accounts[account_index]
+        email = account.get("email") or account.get("phone") or "Без логина"
+        current_status = account.get("status", "pending")
+        
+        # Сохраняем данные в состояние
+        await state.update_data(
+            site_id=site_id,
+            account_index=account_index
+        )
+        
+        # Создаем клавиатуру со статусами
+        keyboard_buttons = []
+        
+        # Текущий статус
+        status_emoji = {
+            "valid": "✅",
+            "processing": "🔄",
+            "pending": "⏳",
+            "banned": "❌"
+        }.get(current_status, "❓")
+        
+        keyboard_buttons.append([
+            InlineKeyboardButton(
+                text=f"Текущий: {status_emoji} {current_status.upper()}", 
+                callback_data=f"current_status_{current_status}"
+            )
+        ])
+        
+        keyboard_buttons.append([])  # Пустая строка для разделения
+        
+        # Все возможные статусы
+        for status in ACCOUNT_STATUSES:
+            if status != current_status:
+                status_emoji = {
+                    "valid": "✅",
+                    "processing": "🔄",
+                    "pending": "⏳",
+                    "banned": "❌"
+                }.get(status, "❓")
+                
+                keyboard_buttons.append([
+                    InlineKeyboardButton(
+                        text=f"{status_emoji} {status.upper()}", 
+                        callback_data=f"set_status_{status}"
+                    )
+                ])
+        
+        keyboard_buttons.append([
+            InlineKeyboardButton(text="🔙 Назад", callback_data=f"manage_status_site_{site_id}")
+        ])
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+        
+        # Используем edit_text для обновления существующего сообщения
+        await callback.message.edit_text(
+            f"🔄 <b>Изменение статуса аккаунта</b>\n\n"
+            f"💎 <b>Дашборд:</b> {site.name}\n"
+            f"👤 <b>Аккаунт #{account_index+1}:</b> {email}\n"
+            f"📋 <b>Текущий статус:</b> {status_emoji} {current_status.upper()}\n\n"
+            f"<b>Выберите новый статус:</b>",
+            reply_markup=keyboard
+        )
+        
+        await callback.answer()
+    
+    except ValueError as e:
+        logger.error(f"Ошибка в select_account_for_status_callback: {e}")
+        await callback.answer("❌ Ошибка: неверный формат данных", show_alert=True)
+    except Exception as e:
+        logger.error(f"Ошибка в select_account_for_status_callback: {e}")
+        await callback.answer("❌ Произошла ошибка", show_alert=True)
+
+@dp.callback_query(F.data.startswith("set_status_"))
+async def set_status_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Установка нового статуса"""
+    status = callback.data.replace("set_status_", "")
+    data = await state.get_data()
+    
+    site_id = data.get("site_id")
+    account_index = data.get("account_index")
+    
+    if not site_id or account_index is None:
+        await callback.answer("❌ Ошибка")
+        return
+    
+    # Обновляем статус
+    success = site_manager.update_account_status(site_id, account_index, status)
+    
+    if success:
+        status_emoji = {
+            "valid": "✅",
+            "processing": "🔄",
+            "pending": "⏳",
+            "banned": "❌"
+        }.get(status, "❓")
+        
+        await callback.answer(f"{status_emoji} Статус изменен на {status}")
+        # Обновляем сообщение
+        await select_account_for_status_callback(callback, state)
+    else:
+        await callback.answer("❌ Ошибка при изменении статуса")
+
+@dp.callback_query(F.data.startswith("current_status_"))
+async def current_status_callback(callback: types.CallbackQuery):
+    """Обработка нажатия на текущий статус (просто информационное сообщение)"""
+    status = callback.data.replace("current_status_", "")
+    status_emoji = {
+        "valid": "✅",
+        "processing": "🔄",
+        "pending": "⏳",
+        "banned": "❌"
+    }.get(status, "❓")
+    
+    await callback.answer(f"Это текущий статус: {status_emoji} {status}", show_alert=True)
+
+
 @dp.callback_query(F.data == "manage_statuses")
 async def manage_statuses_callback(callback: types.CallbackQuery):
     """Управление статусами - выбор сайта"""
@@ -4019,35 +4179,6 @@ async def current_status_callback(callback: types.CallbackQuery):
     await callback.answer(f"Это текущий статус: {status_emoji} {status}", show_alert=True)
 
 
-@dp.callback_query(F.data.startswith("set_status_"))
-async def set_status_callback(callback: types.CallbackQuery, state: FSMContext):
-    """Установка нового статуса"""
-    status = callback.data.replace("set_status_", "")
-    data = await state.get_data()
-    
-    site_id = data.get("site_id")
-    account_index = data.get("account_index")
-    
-    if not site_id or account_index is None:
-        await callback.answer("❌ Ошибка")
-        return
-    
-    # Обновляем статус
-    success = site_manager.update_account_status(site_id, account_index, status)
-    
-    if success:
-        status_emoji = {
-            "valid": "✅",
-            "processing": "🔄",
-            "pending": "⏳",
-            "banned": "❌"
-        }.get(status, "❓")
-        
-        await callback.answer(f"{status_emoji} Статус изменен на {status}")
-        # Обновляем сообщение
-        await select_account_for_status_callback(callback, state)
-    else:
-        await callback.answer("❌ Ошибка при изменении статуса")
 
 # ========== КОМАНДА ДЛЯ УПРАВЛЕНИЯ СТАТУСАМИ ЧЕРЕЗ САЙТ ==========
 @dp.callback_query(F.data.startswith("manage_status_site_"))
