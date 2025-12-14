@@ -2953,79 +2953,10 @@ PREDEFINED_TAGS = [
 # ========== СТАТУСЫ АККАУНТОВ ==========
 ACCOUNT_STATUSES = ["valid", "processing", "pending", "banned"]
 
-# ========== ФУНКЦИИ ДЛЯ ПРОВЕРКИ ДОСТУПА ==========
-def is_user_allowed(user: types.User) -> bool:
-    """Проверяет, разрешен ли пользователь"""
-    username = f"@{user.username}" if user.username else None
-    return username in ALLOWED_USERS
 
-async def check_access(message: types.Message) -> bool:
-    """Проверяет доступ и отправляет сообщение, если доступ запрещен"""
-    if not is_user_allowed(message.from_user):
-        await message.answer(
-            "⛔ <b>Доступ запрещен</b>\n\n"
-            "Этот бот доступен только для определенных пользователей.\n"
-            "Если вы считаете, что это ошибка, свяжитесь с администратором."
-        )
-        return False
-    return True
-
-# ========== ДЕКОРАТОР ДЛЯ ПРОВЕРКИ ДОСТУПА ==========
-def require_access(func):
-    """Декоратор для проверки доступа к командам"""
-    import inspect
-    sig = inspect.signature(func)
-    
-    async def wrapper(*args, **kwargs):
-        # Ищем объект message в аргументах
-        message_or_callback = None
-        for arg in args:
-            if isinstance(arg, (types.Message, types.CallbackQuery)):
-                message_or_callback = arg
-                break
-        
-        if not message_or_callback:
-            # Если message не найден в args, ищем в kwargs
-            for key, value in kwargs.items():
-                if isinstance(value, (types.Message, types.CallbackQuery)):
-                    message_or_callback = value
-                    break
-        
-        if not message_or_callback:
-            # Если все еще не нашли, попробуем первый подходящий аргумент
-            return await func(*args, **kwargs)
-        
-        if isinstance(message_or_callback, types.CallbackQuery):
-            message = message_or_callback.message
-            user = message_or_callback.from_user
-        else:
-            message = message_or_callback
-            user = message_or_callback.from_user
-        
-        if not is_user_allowed(user):
-            if isinstance(message_or_callback, types.CallbackQuery):
-                await message_or_callback.answer("⛔ Доступ запрещен", show_alert=True)
-            else:
-                await message.answer(
-                    "⛔ <b>Доступ запрещен</b>\n\n"
-                    "Этот бот доступен только для определенных пользователей.\n"
-                    "Если вы считаете, что это ошибка, свяжитесь с администратором."
-                )
-            return
-        
-        # Фильтруем kwargs, оставляя только те параметры, которые принимает функция
-        filtered_kwargs = {}
-        for param_name in sig.parameters.keys():
-            if param_name in kwargs:
-                filtered_kwargs[param_name] = kwargs[param_name]
-        
-        return await func(*args, **filtered_kwargs)
-    
-    return wrapper
 
 # ========== ОБРАБОТЧИКИ КОМАНД ==========
 @dp.message(Command("start"))
-@require_access
 async def cmd_start(message: types.Message, **kwargs):  # Добавлен **kwargs
     """Главное меню"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -3059,7 +2990,6 @@ async def cmd_start(message: types.Message, **kwargs):  # Добавлен **kwa
     )
 
 @dp.callback_query(F.data == "create_site")
-@require_access
 async def create_site_callback(callback: types.CallbackQuery, state: FSMContext):
     """Создание нового сайта"""
     await callback.message.answer(
@@ -3069,7 +2999,6 @@ async def create_site_callback(callback: types.CallbackQuery, state: FSMContext)
     await state.set_state(BotStates.waiting_for_site_name)
 
 @dp.message(BotStates.waiting_for_site_name)
-@require_access
 async def process_site_name(message: types.Message, state: FSMContext):
     """Обработка названия сайта"""
     await state.update_data(site_name=message.text)
@@ -3081,7 +3010,6 @@ async def process_site_name(message: types.Message, state: FSMContext):
     await state.set_state(BotStates.waiting_for_site_description)
 
 @dp.message(BotStates.waiting_for_site_description)
-@require_access
 async def process_site_description(message: types.Message, state: FSMContext):
     """Обработка описания сайта и создание"""
     data = await state.get_data()
@@ -3128,7 +3056,6 @@ async def process_site_description(message: types.Message, state: FSMContext):
     await state.clear()
 
 @dp.callback_query(F.data == "add_accounts")
-@require_access
 async def add_accounts_callback(callback: types.CallbackQuery):
     """Добавление аккаунтов"""
     if not site_manager.sites:
@@ -3154,7 +3081,6 @@ async def add_accounts_callback(callback: types.CallbackQuery):
     )
 
 @dp.callback_query(F.data.startswith("select_site_"))
-@require_access
 async def select_site_for_accounts(callback: types.CallbackQuery, state: FSMContext):
     """Выбор сайта для добавления аккаунтов"""
     site_id = callback.data.replace("select_site_", "")
@@ -3175,7 +3101,6 @@ async def select_site_for_accounts(callback: types.CallbackQuery, state: FSMCont
     await state.set_state(BotStates.waiting_for_accounts)
 
 @dp.message(BotStates.waiting_for_accounts)
-@require_access
 async def process_accounts_input(message: types.Message, state: FSMContext):
     """Обработка ввода аккаунтов"""
     if message.text == "/cancel":
@@ -3273,7 +3198,6 @@ async def process_accounts_input(message: types.Message, state: FSMContext):
     await state.clear()
 
 @dp.callback_query(F.data == "list_sites")
-@require_access
 async def list_sites_callback(callback: types.CallbackQuery):
     """Список всех сайтов"""
     if not site_manager.sites:
@@ -3310,7 +3234,6 @@ async def list_sites_callback(callback: types.CallbackQuery):
     await callback.message.answer(sites_text, reply_markup=keyboard)
 
 @dp.callback_query(F.data.startswith("site_actions_"))
-@require_access
 async def site_actions_callback(callback: types.CallbackQuery):
     """Действия для конкретного сайта"""
     site_id = callback.data.replace("site_actions_", "")
@@ -3371,7 +3294,6 @@ async def site_actions_callback(callback: types.CallbackQuery):
     )
 
 @dp.callback_query(F.data.startswith("get_url_"))
-@require_access
 async def get_url_callback(callback: types.CallbackQuery):
     """Получить ссылку на дашборд"""
     site_id = callback.data.replace("get_url_", "")
@@ -3401,7 +3323,6 @@ async def get_url_callback(callback: types.CallbackQuery):
     )
 
 @dp.callback_query(F.data.startswith("open_site_"))
-@require_access
 async def open_site_callback(callback: types.CallbackQuery):
     """Открытие сайта - выдаем ссылку"""
     site_id = callback.data.replace("open_site_", "")
@@ -3455,7 +3376,6 @@ async def open_site_callback(callback: types.CallbackQuery):
 
 # ========== УДАЛЕНИЕ ДАШБОРДОВ ==========
 @dp.callback_query(F.data == "delete_site_menu")
-@require_access
 async def delete_site_menu_callback(callback: types.CallbackQuery):
     """Меню удаления дашбордов"""
     if not site_manager.sites:
@@ -3487,7 +3407,6 @@ async def delete_site_menu_callback(callback: types.CallbackQuery):
     )
 
 @dp.callback_query(F.data.startswith("delete_site_confirm_"))
-@require_access
 async def delete_site_confirm_callback(callback: types.CallbackQuery, state: FSMContext):
     """Подтверждение удаления дашборда"""
     site_id = callback.data.replace("delete_site_confirm_", "")
@@ -3526,7 +3445,6 @@ async def delete_site_confirm_callback(callback: types.CallbackQuery, state: FSM
     )
 
 @dp.callback_query(F.data.startswith("delete_site_final_"))
-@require_access
 async def delete_site_final_callback(callback: types.CallbackQuery, state: FSMContext):
     """Финальное удаление дашборда"""
     site_id = callback.data.replace("delete_site_final_", "")
@@ -3556,7 +3474,6 @@ async def delete_site_final_callback(callback: types.CallbackQuery, state: FSMCo
     await state.clear()
 
 @dp.callback_query(F.data.startswith("delete_site_"))
-@require_access
 async def delete_site_callback(callback: types.CallbackQuery, state: FSMContext):
     """Удаление дашборда (через меню сайта)"""
     site_id = callback.data.replace("delete_site_", "")
@@ -3596,7 +3513,6 @@ async def delete_site_callback(callback: types.CallbackQuery, state: FSMContext)
 
 # ========== УПРАВЛЕНИЕ ЯРЛЫКАМИ ==========
 @dp.callback_query(F.data == "manage_tags")
-@require_access
 async def manage_tags_callback(callback: types.CallbackQuery):
     """Управление ярлыками - выбор сайта"""
     if not site_manager.sites:
@@ -3627,7 +3543,6 @@ async def manage_tags_callback(callback: types.CallbackQuery):
     )
 
 @dp.callback_query(F.data.startswith("select_site_for_tags_"))
-@require_access
 async def select_site_for_tags_callback(callback: types.CallbackQuery):
     """Выбор сайта для управления ярлыками"""
     site_id = callback.data.replace("select_site_for_tags_", "")
@@ -3678,7 +3593,6 @@ async def select_site_for_tags_callback(callback: types.CallbackQuery):
     )
 
 @dp.callback_query(F.data.startswith("select_account_"))
-@require_access
 async def select_account_for_tags_callback(callback: types.CallbackQuery, state: FSMContext):
     """Выбор аккаунта для управления ярлыками"""
     data_parts = callback.data.replace("select_account_", "").split("_")
@@ -3757,7 +3671,6 @@ async def select_account_for_tags_callback(callback: types.CallbackQuery, state:
     )
 
 @dp.callback_query(F.data.startswith("add_tag_"))
-@require_access
 async def add_tag_callback(callback: types.CallbackQuery, state: FSMContext):
     """Добавление тега к аккаунту"""
     tag = callback.data.replace("add_tag_", "")
@@ -3781,7 +3694,6 @@ async def add_tag_callback(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("❌ Ошибка при добавлении тега")
 
 @dp.callback_query(F.data.startswith("remove_tag_"))
-@require_access
 async def remove_tag_callback(callback: types.CallbackQuery, state: FSMContext):
     """Удаление тега из аккаунта"""
     tag = callback.data.replace("remove_tag_", "")
@@ -3817,7 +3729,6 @@ async def remove_tag_callback(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer("❌ Тег не найден")
 
 @dp.callback_query(F.data == "custom_tag")
-@require_access
 async def custom_tag_callback(callback: types.CallbackQuery, state: FSMContext):
     """Ввод пользовательского тега"""
     await callback.message.answer(
@@ -3828,7 +3739,6 @@ async def custom_tag_callback(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(BotStates.waiting_for_tag)
 
 @dp.message(BotStates.waiting_for_tag)
-@require_access
 async def process_custom_tag(message: types.Message, state: FSMContext):
     """Обработка пользовательского тега"""
     if message.text == "/cancel":
@@ -3872,7 +3782,6 @@ async def process_custom_tag(message: types.Message, state: FSMContext):
 
 # ========== УПРАВЛЕНИЕ СТАТУСАМИ ==========
 @dp.callback_query(F.data == "manage_statuses")
-@require_access
 async def manage_statuses_callback(callback: types.CallbackQuery):
     """Управление статусами - выбор сайта"""
     if not site_manager.sites:
@@ -3903,7 +3812,6 @@ async def manage_statuses_callback(callback: types.CallbackQuery):
     )
 
 @dp.callback_query(F.data.startswith("select_site_for_status_"))
-@require_access
 async def select_site_for_status_callback(callback: types.CallbackQuery):
     """Выбор сайта для управления статусами"""
     site_id = callback.data.replace("select_site_for_status_", "")
@@ -3949,7 +3857,6 @@ async def select_site_for_status_callback(callback: types.CallbackQuery):
     )
 
 @dp.callback_query(F.data.startswith("select_account_status_"))
-@require_access
 async def select_account_for_status_callback(callback: types.CallbackQuery, state: FSMContext):
     """Выбор аккаунта для изменения статуса"""
     data_parts = callback.data.replace("select_account_status_", "").split("_")
@@ -4028,7 +3935,6 @@ async def select_account_for_status_callback(callback: types.CallbackQuery, stat
     )
 
 @dp.callback_query(F.data.startswith("set_status_"))
-@require_access
 async def set_status_callback(callback: types.CallbackQuery, state: FSMContext):
     """Установка нового статуса"""
     status = callback.data.replace("set_status_", "")
@@ -4060,7 +3966,6 @@ async def set_status_callback(callback: types.CallbackQuery, state: FSMContext):
 
 # ========== КОМАНДА ДЛЯ УПРАВЛЕНИЯ СТАТУСАМИ ЧЕРЕЗ САЙТ ==========
 @dp.callback_query(F.data.startswith("manage_status_site_"))
-@require_access
 async def manage_status_site_callback(callback: types.CallbackQuery):
     """Управление статусами через меню сайта"""
     site_id = callback.data.replace("manage_status_site_", "")
@@ -4077,7 +3982,6 @@ async def manage_status_site_callback(callback: types.CallbackQuery):
 
 # ========== КОМАНДА ДЛЯ УПРАВЛЕНИЯ ЯРЛЫКАМИ ЧЕРЕЗ САЙТ ==========
 @dp.callback_query(F.data.startswith("manage_tags_site_"))
-@require_access
 async def manage_tags_site_callback(callback: types.CallbackQuery):
     """Управление ярлыками через меню сайта"""
     site_id = callback.data.replace("manage_tags_site_", "")
@@ -4094,7 +3998,6 @@ async def manage_tags_site_callback(callback: types.CallbackQuery):
 
 # ========== КОМАНДА ДЛЯ СТАТИСТИКИ САЙТА ==========
 @dp.callback_query(F.data.startswith("stats_site_"))
-@require_access
 async def stats_site_callback(callback: types.CallbackQuery):
     """Статистика сайта"""
     site_id = callback.data.replace("stats_site_", "")
@@ -4148,7 +4051,6 @@ async def stats_site_callback(callback: types.CallbackQuery):
 
 # ========== УПРАВЛЕНИЕ ОГРАНОМ (уже было в предыдущем коде) ==========
 @dp.callback_query(F.data == "manage_ogran")
-@require_access
 async def manage_ogran_callback(callback: types.CallbackQuery):
     """Управление Ограном"""
     if not site_manager.sites:
@@ -4187,7 +4089,6 @@ async def manage_ogran_callback(callback: types.CallbackQuery):
     )
 
 @dp.callback_query(F.data.startswith("ogran_menu_"))
-@require_access
 async def ogran_menu_callback(callback: types.CallbackQuery):
     """Меню Ограна для конкретного сайта"""
     site_id = callback.data.replace("ogran_menu_", "")
@@ -4253,7 +4154,6 @@ async def ogran_menu_callback(callback: types.CallbackQuery):
     )
 
 @dp.callback_query(F.data.startswith("activate_ogran_"))
-@require_access
 async def activate_ogran_callback(callback: types.CallbackQuery, state: FSMContext):
     """Активация Ограна"""
     site_id = callback.data.replace("activate_ogran_", "")
@@ -4280,7 +4180,6 @@ async def activate_ogran_callback(callback: types.CallbackQuery, state: FSMConte
     await state.set_state(BotStates.waiting_for_ogran_accounts)
 
 @dp.message(BotStates.waiting_for_ogran_accounts)
-@require_access
 async def process_ogran_accounts(message: types.Message, state: FSMContext):
     """Обработка ввода количества аккаунтов для Ограна"""
     if message.text == "/cancel":
@@ -4342,7 +4241,6 @@ async def process_ogran_accounts(message: types.Message, state: FSMContext):
     await state.clear()
 
 @dp.callback_query(F.data.startswith("ogran_status_"))
-@require_access
 async def ogran_status_callback(callback: types.CallbackQuery):
     """Статус Ограна"""
     site_id = callback.data.replace("ogran_status_", "")
@@ -4404,7 +4302,6 @@ async def ogran_status_callback(callback: types.CallbackQuery):
     await callback.message.answer(status_text, reply_markup=keyboard)
 
 @dp.callback_query(F.data.startswith("remove_ogran_"))
-@require_access
 async def remove_ogran_callback(callback: types.CallbackQuery):
     """Снятие Ограна (когда условия выполнены)"""
     site_id = callback.data.replace("remove_ogran_", "")
@@ -4450,7 +4347,6 @@ async def remove_ogran_callback(callback: types.CallbackQuery):
         await callback.message.answer("❌ Ошибка при снятии Ограна")
 
 @dp.callback_query(F.data.startswith("force_remove_ogran_"))
-@require_access
 async def force_remove_ogran_callback(callback: types.CallbackQuery):
     """Принудительное снятие Ограна"""
     site_id = callback.data.replace("force_remove_ogran_", "")
@@ -4480,7 +4376,6 @@ async def force_remove_ogran_callback(callback: types.CallbackQuery):
         await callback.message.answer("❌ Ошибка при снятии Ограна")
 
 @dp.callback_query(F.data.startswith("change_ogran_"))
-@require_access
 async def change_ogran_callback(callback: types.CallbackQuery, state: FSMContext):
     """Изменение количества аккаунтов для Ограна"""
     site_id = callback.data.replace("change_ogran_", "")
@@ -4515,13 +4410,11 @@ async def change_ogran_callback(callback: types.CallbackQuery, state: FSMContext
     await state.set_state(BotStates.waiting_for_ogran_accounts)
 
 @dp.callback_query(F.data == "back_to_main")
-@require_access
 async def back_to_main_callback(callback: types.CallbackQuery):
     """Возврат в главное меню"""
     await cmd_start(callback.message)
 
 @dp.callback_query(F.data.startswith("add_to_site_"))
-@require_access
 async def add_to_site_callback(callback: types.CallbackQuery, state: FSMContext):
     """Прямое добавление аккаунтов на сайт"""
     site_id = callback.data.replace("add_to_site_", "")
