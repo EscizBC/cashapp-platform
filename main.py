@@ -2973,6 +2973,10 @@ async def check_access(message: types.Message) -> bool:
 # ========== ДЕКОРАТОР ДЛЯ ПРОВЕРКИ ДОСТУПА ==========
 def require_access(func):
     """Декоратор для проверки доступа к командам"""
+    # Получаем сигнатуру функции
+    import inspect
+    sig = inspect.signature(func)
+    
     async def wrapper(*args, **kwargs):
         # Ищем объект message в аргументах
         message_or_callback = None
@@ -3002,7 +3006,16 @@ def require_access(func):
                 )
             return
         
-        return await func(*args, **kwargs)
+        # Убираем dispatcher из kwargs, если функция его не принимает
+        if 'dispatcher' in sig.parameters:
+            # Функция ожидает dispatcher, но в aiogram 3.x его нет
+            # Можно передать dp глобальный или просто пропустить
+            return await func(*args, **kwargs)
+        else:
+            # Убираем dispatcher из kwargs
+            kwargs.pop('dispatcher', None)
+            return await func(*args, **kwargs)
+    
     return wrapper
 
 # ========== ОБРАБОТЧИКИ КОМАНД ==========
