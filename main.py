@@ -18,7 +18,7 @@ import os
 import base64
 
 # ========== КОНФИГУРАЦИЯ ==========
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8534738281:AAGrXV_OEEKdP1hEGKWNTzD1WzStkF6d2Ys")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8509386750:AAGs5DRYgE0UrWsBMKBBFSCmpw152M6IASA")
 # Добавьте URL вашего сайта для публикации дашбордов
 SITE_BASE_URL = os.getenv("SITE_BASE_URL", "https://cashapp-platform.onrender.com/sites")  # <- Ваш сайт
 
