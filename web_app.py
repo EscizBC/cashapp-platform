@@ -2,7 +2,7 @@
 from flask import Flask, send_from_directory
 import os
 
-app = Flask(__name__)
+app = Flask(__name__)  # Это должно быть на верхнем уровне
 
 # Импортируем менеджер сайтов для показа списка
 try:
