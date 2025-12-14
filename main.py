@@ -3633,13 +3633,24 @@ async def select_site_for_tags_callback(callback: types.CallbackQuery):
     site_id = callback.data.replace("select_site_for_tags_", "")
     
     if site_id not in site_manager.sites:
-        await callback.answer("❌ Дашборд не найден")
+        # Проверяем, есть ли message для ответа
+        if callback.message:
+            await callback.answer("❌ Дашборд не найден")
+        else:
+            # Если нет сообщения, создаем новое через бота
+            # (нужен chat_id, который можно получить из callback)
+            pass
         return
     
     site = site_manager.sites[site_id]
     
     if not site.accounts:
-        await callback.message.answer("❌ В этом дашборде нет аккаунтов!")
+        # Проверяем message перед использованием
+        if callback.message:
+            await callback.message.answer("❌ В этом дашборде нет аккаунтов!")
+        else:
+            # Если сообщения нет, отвечаем callback
+            await callback.answer("❌ В этом дашборде нет аккаунтов!", show_alert=True)
         return
     
     # Создаем клавиатуру с аккаунтами
@@ -4053,14 +4064,16 @@ async def set_status_callback(callback: types.CallbackQuery, state: FSMContext):
 async def manage_status_site_callback(callback: types.CallbackQuery):
     """Управление статусами через меню сайта"""
     site_id = callback.data.replace("manage_status_site_", "")
-    await select_site_for_status_callback(
-        types.CallbackQuery(
-            id=callback.id,
-            from_user=callback.from_user,
-            chat_instance=callback.chat_instance,
-            data=f"select_site_for_status_{site_id}"
-        )
+    
+    # Используем оригинальный callback, а не создаем новый
+    fake_callback = types.CallbackQuery(
+        id=callback.id,
+        from_user=callback.from_user,
+        chat_instance=callback.chat_instance,
+        data=f"select_site_for_status_{site_id}",
+        message=callback.message  # Сохраняем оригинальное сообщение
     )
+    await select_site_for_status_callback(fake_callback)
 
 # ========== КОМАНДА ДЛЯ УПРАВЛЕНИЯ ЯРЛЫКАМИ ЧЕРЕЗ САЙТ ==========
 @dp.callback_query(F.data.startswith("manage_tags_site_"))
@@ -4068,14 +4081,16 @@ async def manage_status_site_callback(callback: types.CallbackQuery):
 async def manage_tags_site_callback(callback: types.CallbackQuery):
     """Управление ярлыками через меню сайта"""
     site_id = callback.data.replace("manage_tags_site_", "")
-    await select_site_for_tags_callback(
-        types.CallbackQuery(
-            id=callback.id,
-            from_user=callback.from_user,
-            chat_instance=callback.chat_instance,
-            data=f"select_site_for_tags_{site_id}"
-        )
+    
+    # Используем оригинальный callback, а не создаем новый
+    fake_callback = types.CallbackQuery(
+        id=callback.id,
+        from_user=callback.from_user,
+        chat_instance=callback.chat_instance,
+        data=f"select_site_for_tags_{site_id}",
+        message=callback.message  # Сохраняем оригинальное сообщение
     )
+    await select_site_for_tags_callback(fake_callback)
 
 # ========== КОМАНДА ДЛЯ СТАТИСТИКИ САЙТА ==========
 @dp.callback_query(F.data.startswith("stats_site_"))
