@@ -3651,14 +3651,14 @@ async def select_account_for_tags_callback(callback: types.CallbackQuery, state:
     ])
     
     keyboard_buttons.append([
-        InlineKeyboardButton(text="🔙 Назад", callback_data=f"select_site_for_tags_{site_id}")
+        InlineKeyboardButton(text="🔙 Назад", callback_data=f"manage_tags_site_{site_id}")
     ])
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
     
     tags_text = ", ".join(current_tags) if current_tags else "Нет тегов"
     
-    await callback.message.answer(
+    await callback.message.edit_text(
         f"🏷️ <b>Управление ярлыками</b>\n\n"
         f"💎 <b>Дашборд:</b> {site.name}\n"
         f"👤 <b>Аккаунт #{account_index+1}:</b> {email}\n"
@@ -3669,7 +3669,8 @@ async def select_account_for_tags_callback(callback: types.CallbackQuery, state:
         f"• ✏️ - ввести свой тег",
         reply_markup=keyboard
     )
-
+    
+    
 @dp.callback_query(F.data.startswith("add_tag_"))
 async def add_tag_callback(callback: types.CallbackQuery, state: FSMContext):
     """Добавление тега к аккаунту"""
@@ -3920,12 +3921,12 @@ async def select_account_for_status_callback(callback: types.CallbackQuery, stat
             ])
     
     keyboard_buttons.append([
-        InlineKeyboardButton(text="🔙 Назад", callback_data=f"select_site_for_status_{site_id}")
+        InlineKeyboardButton(text="🔙 Назад", callback_data=f"manage_status_site_{site_id}")
     ])
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
     
-    await callback.message.answer(
+    await callback.message.edit_text(
         f"🔄 <b>Изменение статуса аккаунта</b>\n\n"
         f"💎 <b>Дашборд:</b> {site.name}\n"
         f"👤 <b>Аккаунт #{account_index+1}:</b> {email}\n"
@@ -3970,15 +3971,45 @@ async def manage_status_site_callback(callback: types.CallbackQuery):
     """Управление статусами через меню сайта"""
     site_id = callback.data.replace("manage_status_site_", "")
     
-    # Используем оригинальный callback, а не создаем новый
-    fake_callback = types.CallbackQuery(
-        id=callback.id,
-        from_user=callback.from_user,
-        chat_instance=callback.chat_instance,
-        data=f"select_site_for_status_{site_id}",
-        message=callback.message  # Сохраняем оригинальное сообщение
+    if site_id not in site_manager.sites:
+        await callback.answer("❌ Дашборд не найден")
+        return
+    
+    site = site_manager.sites[site_id]
+    
+    if not site.accounts:
+        await callback.message.answer("❌ В этом дашборде нет аккаунтов!")
+        return
+    
+    # Создаем клавиатуру с аккаунтами
+    keyboard_buttons = []
+    for i, account in enumerate(site.accounts):
+        email = account.get("email") or account.get("phone") or "Без логина"
+        status = account.get("status", "pending")
+        status_emoji = {
+            "valid": "✅",
+            "processing": "🔄",
+            "pending": "⏳",
+            "banned": "❌"
+        }.get(status, "❓")
+        
+        keyboard_buttons.append([
+            InlineKeyboardButton(
+                text=f"#{i+1}: {status_emoji} {email[:20]}...", 
+                callback_data=f"select_account_status_{site_id}_{i}"
+            )
+        ])
+    
+    keyboard_buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data=f"site_actions_{site_id}")])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    
+    await callback.message.edit_text(
+        f"🔄 <b>Управление статусами</b>\n\n"
+        f"💎 <b>Дашборд:</b> {site.name}\n"
+        f"📊 <b>Аккаунтов:</b> {len(site.accounts)}\n\n"
+        f"Выберите аккаунт для изменения статуса:",
+        reply_markup=keyboard
     )
-    await select_site_for_status_callback(fake_callback)
 
 # ========== КОМАНДА ДЛЯ УПРАВЛЕНИЯ ЯРЛЫКАМИ ЧЕРЕЗ САЙТ ==========
 @dp.callback_query(F.data.startswith("manage_tags_site_"))
@@ -3986,15 +4017,39 @@ async def manage_tags_site_callback(callback: types.CallbackQuery):
     """Управление ярлыками через меню сайта"""
     site_id = callback.data.replace("manage_tags_site_", "")
     
-    # Используем оригинальный callback, а не создаем новый
-    fake_callback = types.CallbackQuery(
-        id=callback.id,
-        from_user=callback.from_user,
-        chat_instance=callback.chat_instance,
-        data=f"select_site_for_tags_{site_id}",
-        message=callback.message  # Сохраняем оригинальное сообщение
+    if site_id not in site_manager.sites:
+        await callback.answer("❌ Дашборд не найден")
+        return
+    
+    site = site_manager.sites[site_id]
+    
+    if not site.accounts:
+        await callback.message.answer("❌ В этом дашборде нет аккаунтов!")
+        return
+    
+    # Создаем клавиатуру с аккаунтами
+    keyboard_buttons = []
+    for i, account in enumerate(site.accounts):
+        email = account.get("email") or account.get("phone") or "Без логина"
+        account_tags = ", ".join(account.get("tags", [])) if account.get("tags") else "Нет тегов"
+        
+        keyboard_buttons.append([
+            InlineKeyboardButton(
+                text=f"#{i+1}: {email[:20]}... [{account_tags[:10]}]", 
+                callback_data=f"select_account_{site_id}_{i}"
+            )
+        ])
+    
+    keyboard_buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data=f"site_actions_{site_id}")])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    
+    await callback.message.edit_text(
+        f"🏷️ <b>Управление ярлыками</b>\n\n"
+        f"💎 <b>Дашборд:</b> {site.name}\n"
+        f"📊 <b>Аккаунтов:</b> {len(site.accounts)}\n\n"
+        f"Выберите аккаунт для добавления/удаления ярлыков:",
+        reply_markup=keyboard
     )
-    await select_site_for_tags_callback(fake_callback)
 
 # ========== КОМАНДА ДЛЯ СТАТИСТИКИ САЙТА ==========
 @dp.callback_query(F.data.startswith("stats_site_"))
