@@ -3548,24 +3548,13 @@ async def select_site_for_tags_callback(callback: types.CallbackQuery):
     site_id = callback.data.replace("select_site_for_tags_", "")
     
     if site_id not in site_manager.sites:
-        # Проверяем, есть ли message для ответа
-        if callback.message:
-            await callback.answer("❌ Дашборд не найден")
-        else:
-            # Если нет сообщения, создаем новое через бота
-            # (нужен chat_id, который можно получить из callback)
-            pass
+        await callback.answer("❌ Дашборд не найден")
         return
     
     site = site_manager.sites[site_id]
     
     if not site.accounts:
-        # Проверяем message перед использованием
-        if callback.message:
-            await callback.message.answer("❌ В этом дашборде нет аккаунтов!")
-        else:
-            # Если сообщения нет, отвечаем callback
-            await callback.answer("❌ В этом дашборде нет аккаунтов!", show_alert=True)
+        await callback.message.answer("❌ В этом дашборде нет аккаунтов!")
         return
     
     # Создаем клавиатуру с аккаунтами
@@ -3577,7 +3566,7 @@ async def select_site_for_tags_callback(callback: types.CallbackQuery):
         keyboard_buttons.append([
             InlineKeyboardButton(
                 text=f"#{i+1}: {email[:20]}... [{account_tags[:10]}]", 
-                callback_data=f"select_account_{site_id}|{i}"
+                callback_data=f"select_account_for_tags_{site_id}_{i}"
             )
         ])
     
@@ -3592,84 +3581,99 @@ async def select_site_for_tags_callback(callback: types.CallbackQuery):
         reply_markup=keyboard
     )
 
-@dp.callback_query(F.data.startswith("select_account_"))
+@dp.callback_query(F.data.startswith("select_account_for_tags_"))
 async def select_account_for_tags_callback(callback: types.CallbackQuery, state: FSMContext):
     """Выбор аккаунта для управления ярлыками"""
-    data_parts = callback.data.replace("select_account_", "").split("|")
-    if len(data_parts) == 2:
-        site_id = data_parts[0]
-        account_index = int(data_parts[1])
+    try:
+        data_str = callback.data.replace("select_account_for_tags_", "")
         
+        # Формат: site_id_index
+        parts = data_str.split("_")
+        if len(parts) < 2:
+            await callback.answer("❌ Ошибка: неверный формат данных")
+            return
+        
+        # site_id может содержать подчеркивания, поэтому берем все кроме последнего элемента
+        site_id_parts = parts[:-1]
+        site_id = "_".join(site_id_parts)
+        account_index = int(parts[-1])
+        
+        if not site_id:
+            await callback.answer("❌ Ошибка: не найден ID сайта")
+            return
+        
+        if site_id not in site_manager.sites:
+            await callback.answer("❌ Дашборд не найден")
+            return
+        
+        site = site_manager.sites[site_id]
+        
+        if account_index >= len(site.accounts):
+            await callback.answer("❌ Аккаунт не найден")
+            return
+        
+        account = site.accounts[account_index]
+        email = account.get("email") or account.get("phone") or "Без логина"
+        current_tags = account.get("tags", [])
+        
+        # Сохраняем данные в состояние
+        await state.update_data(
+            site_id=site_id,
+            account_index=account_index
+        )
+        
+        # Создаем клавиатуру с тегами
+        keyboard_buttons = []
+        
+        # Предустановленные теги
+        for tag in PREDEFINED_TAGS:
+            if tag in current_tags:
+                keyboard_buttons.append([
+                    InlineKeyboardButton(
+                        text=f"❌ {tag}", 
+                        callback_data=f"remove_tag_{tag}"
+                    )
+                ])
+            else:
+                keyboard_buttons.append([
+                    InlineKeyboardButton(
+                        text=f"✅ {tag}", 
+                        callback_data=f"add_tag_{tag}"
+                    )
+                ])
+        
+        keyboard_buttons.append([
+            InlineKeyboardButton(text="✏️ Ввести свой тег", callback_data="custom_tag")
+        ])
+        
+        keyboard_buttons.append([
+            InlineKeyboardButton(text="🔙 Назад", callback_data=f"manage_tags_site_{site_id}")
+        ])
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+        
+        tags_text = ", ".join(current_tags) if current_tags else "Нет тегов"
+        
+        await callback.message.edit_text(
+            f"🏷️ <b>Управление ярлыками</b>\n\n"
+            f"💎 <b>Дашборд:</b> {site.name}\n"
+            f"👤 <b>Аккаунт #{account_index+1}:</b> {email}\n"
+            f"📋 <b>Текущие теги:</b> {tags_text}\n\n"
+            f"<b>Выберите действие:</b>\n"
+            f"• ❌ - удалить существующий тег\n"
+            f"• ✅ - добавить новый тег\n"
+            f"• ✏️ - ввести свой тег",
+            reply_markup=keyboard
+        )
+        
+        await callback.answer()
     
-    site_id = data_parts[0]
-    account_index = int(data_parts[1])
-    
-    if site_id not in site_manager.sites:
-        await callback.answer("❌ Дашборд не найден")
-        return
-    
-    site = site_manager.sites[site_id]
-    
-    if account_index >= len(site.accounts):
-        await callback.message.answer("❌ Аккаунт не найден")
-        return
-    
-    account = site.accounts[account_index]
-    email = account.get("email") or account.get("phone") or "Без логина"
-    current_tags = account.get("tags", [])
-    
-    # Сохраняем данные в состояние
-    await state.update_data(
-        site_id=site_id,
-        account_index=account_index
-    )
-    
-    # Создаем клавиатуру с тегами
-    keyboard_buttons = []
-    
-    # Предустановленные теги
-    for tag in PREDEFINED_TAGS:
-        if tag in current_tags:
-            # Тег уже есть - кнопка для удаления
-            keyboard_buttons.append([
-                InlineKeyboardButton(
-                    text=f"❌ {tag}", 
-                    callback_data=f"remove_tag_{tag}"
-                )
-            ])
-        else:
-            # Тега нет - кнопка для добавления
-            keyboard_buttons.append([
-                InlineKeyboardButton(
-                    text=f"✅ {tag}", 
-                    callback_data=f"add_tag_{tag}"
-                )
-            ])
-    
-    # Добавляем возможность ввести свой тег
-    keyboard_buttons.append([
-        InlineKeyboardButton(text="✏️ Ввести свой тег", callback_data="custom_tag")
-    ])
-    
-    keyboard_buttons.append([
-        InlineKeyboardButton(text="🔙 Назад", callback_data=f"manage_tags_site_{site_id}")
-    ])
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
-    
-    tags_text = ", ".join(current_tags) if current_tags else "Нет тегов"
-    
-    await callback.message.edit_text(
-        f"🏷️ <b>Управление ярлыками</b>\n\n"
-        f"💎 <b>Дашборд:</b> {site.name}\n"
-        f"👤 <b>Аккаунт #{account_index+1}:</b> {email}\n"
-        f"📋 <b>Текущие теги:</b> {tags_text}\n\n"
-        f"<b>Выберите действие:</b>\n"
-        f"• ❌ - удалить существующий тег\n"
-        f"• ✅ - добавить новый тег\n"
-        f"• ✏️ - ввести свой тег",
-        reply_markup=keyboard
-    )
+    except ValueError as e:
+        logger.error(f"Ошибка в select_account_for_tags_callback: {e}")
+        await callback.answer("❌ Ошибка: неверный формат данных", show_alert=True)
+    except Exception as e:
+        logger.error(f"Ошибка в select_account_for_tags_callback: {e}")
+        await callback.answer("❌ Произошла ошибка", show_alert=True)
     
     
 @dp.callback_query(F.data.startswith("add_tag_"))
@@ -3729,16 +3733,6 @@ async def remove_tag_callback(callback: types.CallbackQuery, state: FSMContext):
         await select_account_for_tags_callback(callback, state)
     else:
         await callback.answer("❌ Тег не найден")
-
-@dp.callback_query(F.data == "custom_tag")
-async def custom_tag_callback(callback: types.CallbackQuery, state: FSMContext):
-    """Ввод пользовательского тега"""
-    await callback.message.answer(
-        "✏️ <b>Введите свой тег:</b>\n\n"
-        "Пример: Verified User, High Balance, US Account\n\n"
-        "❌ /cancel для отмены"
-    )
-    await state.set_state(BotStates.waiting_for_tag)
 
 @dp.message(BotStates.waiting_for_tag)
 async def process_custom_tag(message: types.Message, state: FSMContext):
@@ -4058,34 +4052,22 @@ async def select_site_for_status_callback(callback: types.CallbackQuery):
         reply_markup=keyboard
     )
 
-@dp.callback_query(F.data.startswith("select_account_"))
-async def select_account_for_tags_callback(callback: types.CallbackQuery, state: FSMContext):
-    """Выбор аккаунта для управления ярлыками"""
+@dp.callback_query(F.data.startswith("select_account_status_"))
+async def select_account_for_status_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Выбор аккаунта для управления статусами"""
     try:
-        # Убираем префикс
-        data_str = callback.data.replace("select_account_", "")
+        data_str = callback.data.replace("select_account_status_", "")
         
-        # Проверяем оба возможных формата
-        if "|" in data_str:
-            # Формат: site_id|account_index
-            parts = data_str.split("|")
-            if len(parts) != 2:
-                await callback.answer("❌ Ошибка: неверный формат данных")
-                return
-            site_id = parts[0]
-            account_index = int(parts[1])
-        elif "_" in data_str:
-            # Формат: site_id_account_index
-            # Находим последний разделитель _
-            last_underscore = data_str.rfind("_")
-            if last_underscore == -1:
-                await callback.answer("❌ Ошибка: неверный формат данных")
-                return
-            site_id = data_str[:last_underscore]
-            account_index = int(data_str[last_underscore+1:])
-        else:
+        # Формат: site_id_index
+        parts = data_str.split("_")
+        if len(parts) < 2:
             await callback.answer("❌ Ошибка: неверный формат данных")
             return
+        
+        # site_id может содержать подчеркивания, поэтому берем все кроме последнего элемента
+        site_id_parts = parts[:-1]
+        site_id = "_".join(site_id_parts)
+        account_index = int(parts[-1])
         
         if not site_id:
             await callback.answer("❌ Ошибка: не найден ID сайта")
@@ -4103,7 +4085,7 @@ async def select_account_for_tags_callback(callback: types.CallbackQuery, state:
         
         account = site.accounts[account_index]
         email = account.get("email") or account.get("phone") or "Без логина"
-        current_tags = account.get("tags", [])
+        current_status = account.get("status", "pending")
         
         # Сохраняем данные в состояние
         await state.update_data(
@@ -4111,59 +4093,67 @@ async def select_account_for_tags_callback(callback: types.CallbackQuery, state:
             account_index=account_index
         )
         
-        # Создаем клавиатуру с тегами
+        # Создаем клавиатуру со статусами
         keyboard_buttons = []
         
-        # Предустановленные теги
-        for tag in PREDEFINED_TAGS:
-            if tag in current_tags:
-                keyboard_buttons.append([
-                    InlineKeyboardButton(
-                        text=f"❌ {tag}", 
-                        callback_data=f"remove_tag_{tag}"
-                    )
-                ])
-            else:
-                keyboard_buttons.append([
-                    InlineKeyboardButton(
-                        text=f"✅ {tag}", 
-                        callback_data=f"add_tag_{tag}"
-                    )
-                ])
+        # Текущий статус
+        status_emoji = {
+            "valid": "✅",
+            "processing": "🔄",
+            "pending": "⏳",
+            "banned": "❌"
+        }.get(current_status, "❓")
         
         keyboard_buttons.append([
-            InlineKeyboardButton(text="✏️ Ввести свой тег", callback_data="custom_tag")
+            InlineKeyboardButton(
+                text=f"Текущий: {status_emoji} {current_status.upper()}", 
+                callback_data=f"current_status_{current_status}"
+            )
         ])
         
+        keyboard_buttons.append([])  # Пустая строка для разделения
+        
+        # Все возможные статусы
+        for status in ACCOUNT_STATUSES:
+            if status != current_status:
+                status_emoji = {
+                    "valid": "✅",
+                    "processing": "🔄",
+                    "pending": "⏳",
+                    "banned": "❌"
+                }.get(status, "❓")
+                
+                keyboard_buttons.append([
+                    InlineKeyboardButton(
+                        text=f"{status_emoji} {status.upper()}", 
+                        callback_data=f"set_status_{status}"
+                    )
+                ])
+        
         keyboard_buttons.append([
-            InlineKeyboardButton(text="🔙 Назад", callback_data=f"manage_tags_site_{site_id}")
+            InlineKeyboardButton(text="🔙 Назад", callback_data=f"manage_status_site_{site_id}")
         ])
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
         
-        tags_text = ", ".join(current_tags) if current_tags else "Нет тегов"
-        
-        # Используем edit_text для обновления существующего сообщения
         await callback.message.edit_text(
-            f"🏷️ <b>Управление ярлыками</b>\n\n"
+            f"🔄 <b>Изменение статуса аккаунта</b>\n\n"
             f"💎 <b>Дашборд:</b> {site.name}\n"
             f"👤 <b>Аккаунт #{account_index+1}:</b> {email}\n"
-            f"📋 <b>Текущие теги:</b> {tags_text}\n\n"
-            f"<b>Выберите действие:</b>\n"
-            f"• ❌ - удалить существующий тег\n"
-            f"• ✅ - добавить новый тег\n"
-            f"• ✏️ - ввести свой тег",
+            f"📋 <b>Текущий статус:</b> {status_emoji} {current_status.upper()}\n\n"
+            f"<b>Выберите новый статус:</b>",
             reply_markup=keyboard
         )
         
         await callback.answer()
     
     except ValueError as e:
-        logger.error(f"Ошибка в select_account_for_tags_callback: {e}")
+        logger.error(f"Ошибка в select_account_for_status_callback: {e}")
         await callback.answer("❌ Ошибка: неверный формат данных", show_alert=True)
     except Exception as e:
-        logger.error(f"Ошибка в select_account_for_tags_callback: {e}")
+        logger.error(f"Ошибка в select_account_for_status_callback: {e}")
         await callback.answer("❌ Произошла ошибка", show_alert=True)
+
 
 @dp.callback_query(F.data.startswith("current_status_"))
 async def current_status_callback(callback: types.CallbackQuery):
