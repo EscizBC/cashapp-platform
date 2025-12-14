@@ -3860,80 +3860,117 @@ async def select_site_for_status_callback(callback: types.CallbackQuery):
 @dp.callback_query(F.data.startswith("select_account_status_"))
 async def select_account_for_status_callback(callback: types.CallbackQuery, state: FSMContext):
     """Выбор аккаунта для изменения статуса"""
-    data_parts = callback.data.replace("select_account_status_", "").split("_")
-    if len(data_parts) < 2:
-        await callback.answer("❌ Ошибка")
-        return
-    
-    site_id = data_parts[0]
-    account_index = int(data_parts[1])
-    
-    if site_id not in site_manager.sites:
-        await callback.answer("❌ Дашборд не найден")
-        return
-    
-    site = site_manager.sites[site_id]
-    
-    if account_index >= len(site.accounts):
-        await callback.message.answer("❌ Аккаунт не найден")
-        return
-    
-    account = site.accounts[account_index]
-    email = account.get("email") or account.get("phone") or "Без логина"
-    current_status = account.get("status", "pending")
-    
-    # Сохраняем данные в состояние
-    await state.update_data(
-        site_id=site_id,
-        account_index=account_index
-    )
-    
-    # Создаем клавиатуру со статусами
-    keyboard_buttons = []
-    for status in ACCOUNT_STATUSES:
-        status_emoji = {
-            "valid": "✅",
-            "processing": "🔄",
-            "pending": "⏳",
-            "banned": "❌"
-        }.get(status, "❓")
+    try:
+        data_parts = callback.data.replace("select_account_status_", "").split("_")
+        if len(data_parts) < 2:
+            await callback.answer("❌ Ошибка формата данных")
+            return
         
-        status_text = {
-            "valid": "Valid (✅)",
-            "processing": "Processing (🔄)",
-            "pending": "Pending (⏳)",
-            "banned": "Banned (❌)"
-        }.get(status, status)
+        site_id = data_parts[0]
+        account_index = int(data_parts[1])
         
-        if status == current_status:
-            keyboard_buttons.append([
-                InlineKeyboardButton(
-                    text=f"● {status_text}", 
-                    callback_data=f"current_status_{status}"
-                )
-            ])
-        else:
-            keyboard_buttons.append([
-                InlineKeyboardButton(
-                    text=f"{status_emoji} {status_text}", 
-                    callback_data=f"set_status_{status}"
-                )
-            ])
+        if site_id not in site_manager.sites:
+            await callback.answer("❌ Дашборд не найден")
+            return
+        
+        site = site_manager.sites[site_id]
+        
+        if account_index >= len(site.accounts):
+            if callback.message:
+                await callback.message.answer("❌ Аккаунт не найден")
+            else:
+                await callback.answer("❌ Аккаунт не найден", show_alert=True)
+            return
+        
+        account = site.accounts[account_index]
+        email = account.get("email") or account.get("phone") or "Без логина"
+        current_status = account.get("status", "pending")
+        
+        # Сохраняем данные в состояние
+        await state.update_data(
+            site_id=site_id,
+            account_index=account_index
+        )
+        
+        # Создаем клавиатуру со статусами
+        keyboard_buttons = []
+        for status in ACCOUNT_STATUSES:
+            status_emoji = {
+                "valid": "✅",
+                "processing": "🔄",
+                "pending": "⏳",
+                "banned": "❌"
+            }.get(status, "❓")
+            
+            status_text = {
+                "valid": "Valid (✅)",
+                "processing": "Processing (🔄)",
+                "pending": "Pending (⏳)",
+                "banned": "Banned (❌)"
+            }.get(status, status)
+            
+            if status == current_status:
+                keyboard_buttons.append([
+                    InlineKeyboardButton(
+                        text=f"● {status_text} (текущий)", 
+                        callback_data=f"current_status_{status}"
+                    )
+                ])
+            else:
+                keyboard_buttons.append([
+                    InlineKeyboardButton(
+                        text=f"{status_emoji} {status_text}", 
+                        callback_data=f"set_status_{status}"
+                    )
+                ])
+        
+        keyboard_buttons.append([
+            InlineKeyboardButton(text="🔙 Назад", callback_data=f"manage_status_site_{site_id}")
+        ])
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+        
+        # Проверяем, можно ли редактировать сообщение
+        try:
+            await callback.message.edit_text(
+                f"🔄 <b>Изменение статуса аккаунта</b>\n\n"
+                f"💎 <b>Дашборд:</b> {site.name}\n"
+                f"👤 <b>Аккаунт #{account_index+1}:</b> {email}\n"
+                f"📊 <b>Текущий статус:</b> {current_status.upper()}\n\n"
+                f"<b>Выберите новый статус:</b>",
+                reply_markup=keyboard
+            )
+        except:
+            # Если нельзя редактировать, отправляем новое сообщение
+            await callback.message.answer(
+                f"🔄 <b>Изменение статуса аккаунта</b>\n\n"
+                f"💎 <b>Дашборд:</b> {site.name}\n"
+                f"👤 <b>Аккаунт #{account_index+1}:</b> {email}\n"
+                f"📊 <b>Текущий статус:</b> {current_status.upper()}\n\n"
+                f"<b>Выберите новый статус:</b>",
+                reply_markup=keyboard
+            )
     
-    keyboard_buttons.append([
-        InlineKeyboardButton(text="🔙 Назад", callback_data=f"manage_status_site_{site_id}")
-    ])
+    except ValueError as e:
+        logger.error(f"Ошибка в select_account_for_status_callback: {e}")
+        await callback.answer("❌ Ошибка: неверный формат данных")
+    except Exception as e:
+        logger.error(f"Ошибка в select_account_for_status_callback: {e}")
+        await callback.answer("❌ Произошла ошибка")
+
+@dp.callback_query(F.data.startswith("current_status_"))
+async def current_status_callback(callback: types.CallbackQuery):
+    """Обработка нажатия на текущий статус (просто информационное сообщение)"""
+    status = callback.data.replace("current_status_", "")
+    status_emoji = {
+        "valid": "✅",
+        "processing": "🔄",
+        "pending": "⏳",
+        "banned": "❌"
+    }.get(status, "❓")
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
-    
-    await callback.message.edit_text(
-        f"🔄 <b>Изменение статуса аккаунта</b>\n\n"
-        f"💎 <b>Дашборд:</b> {site.name}\n"
-        f"👤 <b>Аккаунт #{account_index+1}:</b> {email}\n"
-        f"📊 <b>Текущий статус:</b> {current_status.upper()}\n\n"
-        f"<b>Выберите новый статус:</b>",
-        reply_markup=keyboard
-    )
+    await callback.answer(f"Это текущий статус: {status_emoji} {status}", show_alert=True)
+
 
 @dp.callback_query(F.data.startswith("set_status_"))
 async def set_status_callback(callback: types.CallbackQuery, state: FSMContext):
