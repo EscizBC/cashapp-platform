@@ -2973,7 +2973,6 @@ async def check_access(message: types.Message) -> bool:
 # ========== ДЕКОРАТОР ДЛЯ ПРОВЕРКИ ДОСТУПА ==========
 def require_access(func):
     """Декоратор для проверки доступа к командам"""
-    # Получаем сигнатуру функции
     import inspect
     sig = inspect.signature(func)
     
@@ -2986,6 +2985,14 @@ def require_access(func):
                 break
         
         if not message_or_callback:
+            # Если message не найден в args, ищем в kwargs
+            for key, value in kwargs.items():
+                if isinstance(value, (types.Message, types.CallbackQuery)):
+                    message_or_callback = value
+                    break
+        
+        if not message_or_callback:
+            # Если все еще не нашли, попробуем первый подходящий аргумент
             return await func(*args, **kwargs)
         
         if isinstance(message_or_callback, types.CallbackQuery):
@@ -3006,22 +3013,20 @@ def require_access(func):
                 )
             return
         
-        # Убираем dispatcher из kwargs, если функция его не принимает
-        if 'dispatcher' in sig.parameters:
-            # Функция ожидает dispatcher, но в aiogram 3.x его нет
-            # Можно передать dp глобальный или просто пропустить
-            return await func(*args, **kwargs)
-        else:
-            # Убираем dispatcher из kwargs
-            kwargs.pop('dispatcher', None)
-            return await func(*args, **kwargs)
+        # Фильтруем kwargs, оставляя только те параметры, которые принимает функция
+        filtered_kwargs = {}
+        for param_name in sig.parameters.keys():
+            if param_name in kwargs:
+                filtered_kwargs[param_name] = kwargs[param_name]
+        
+        return await func(*args, **filtered_kwargs)
     
     return wrapper
 
 # ========== ОБРАБОТЧИКИ КОМАНД ==========
 @dp.message(Command("start"))
 @require_access
-async def cmd_start(message: types.Message):  # <-- dispatcher УБРАТЬ
+async def cmd_start(message: types.Message, **kwargs):  # Добавлен **kwargs
     """Главное меню"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -4534,11 +4539,14 @@ async def main():
     try:
         await bot.delete_webhook(drop_pending_updates=True)
         print("✅ Вебхук удален для polling")
-    except:
-        pass
+    except Exception as e:
+        print(f"⚠️ Ошибка удаления вебхука: {e}")
     
-    # Запускаем polling
-    await dp.start_polling(bot)
+    # Даем время на завершение предыдущих сессий
+    await asyncio.sleep(2)
+    
+    # Запускаем polling с skip_updates
+    await dp.start_polling(bot, skip_updates=True)
 
 if __name__ == "__main__":
     asyncio.run(main())
