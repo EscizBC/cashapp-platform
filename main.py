@@ -3008,7 +3008,7 @@ def require_access(func):
 # ========== ОБРАБОТЧИКИ КОМАНД ==========
 @dp.message(Command("start"))
 @require_access
-async def cmd_start(message: types.Message):
+async def cmd_start(message: types.Message):  # <-- dispatcher УБРАТЬ
     """Главное меню"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
