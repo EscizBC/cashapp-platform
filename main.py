@@ -1,8 +1,7 @@
-
 import asyncio
 import logging
 from datetime import datetime
-from typing import List, Dict, Any, Callable, Awaitable
+from typing import List, Dict
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -17,7 +16,6 @@ from dataclasses import dataclass, field
 import uuid
 import os
 import base64
-from functools import wraps
 
 # ========== КОНФИГУРАЦИЯ ==========
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8509386750:AAGs5DRYgE0UrWsBMKBBFSCmpw152M6IASA")
@@ -931,7 +929,7 @@ class SiteManager:
             background: radial-gradient(circle at center, 
                 rgba(0, 214, 50, 0.15) 0%,
                 rgba(0, 214, 50, 0.05) 40%,
-                transparent 70%;
+                transparent 70%);
             filter: blur(60px);
             animation: float 20s ease-in-out infinite;
         }
@@ -949,7 +947,7 @@ class SiteManager:
             background: radial-gradient(circle at center, 
                 rgba(0, 194, 255, 0.1) 0%,
                 rgba(0, 194, 255, 0.03) 40%,
-                transparent 70%;
+                transparent 70%);
         }
         
         @keyframes float {
@@ -1984,8 +1982,951 @@ class SiteManager:
     
     def get_landing_page(self) -> str:
         """Лендинг страница"""
-        # Содержимое лендинга остается таким же
-        # ... (остается без изменений) ...
+        return '''<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CashApp Pro • Professional Dashboard Manager</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-green: #00D632;
+            --primary-dark: #000000;
+            --surface-dark: #0A0F0A;
+            --surface-card: #111511;
+            --surface-border: #1C231C;
+            --text-primary: #FFFFFF;
+            --text-secondary: #A0A8A0;
+            --text-tertiary: #6B726B;
+            
+            --shadow-lg: 0 8px 32px rgba(0, 214, 50, 0.15);
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+            --radius-full: 9999px;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--primary-dark);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        
+        /* Анимированный фон */
+        .hero-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: -2;
+            overflow: hidden;
+        }
+        
+        .gradient-orb {
+            position: absolute;
+            width: 800px;
+            height: 800px;
+            border-radius: 50%;
+            background: radial-gradient(circle at center, 
+                rgba(0, 214, 50, 0.2) 0%,
+                rgba(0, 214, 50, 0.05) 40%,
+                transparent 70%);
+            filter: blur(80px);
+            animation: float 20s ease-in-out infinite;
+        }
+        
+        .gradient-orb:nth-child(1) {
+            top: -400px;
+            right: -300px;
+            animation-delay: 0s;
+        }
+        
+        .gradient-orb:nth-child(2) {
+            bottom: -300px;
+            left: -400px;
+            animation-delay: -5s;
+            background: radial-gradient(circle at center, 
+                rgba(0, 194, 255, 0.15) 0%,
+                rgba(0, 194, 255, 0.03) 40%,
+                transparent 70%);
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(50px, -50px) scale(1.05); }
+            66% { transform: translate(-30px, 30px) scale(0.95); }
+        }
+        
+        /* Частицы */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: -1;
+            pointer-events: none;
+        }
+        
+        .particle {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: var(--primary-green);
+            border-radius: 50%;
+            animation: particleFloat 15s infinite linear;
+        }
+        
+        @keyframes particleFloat {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.8;
+            }
+            90% {
+                opacity: 0.8;
+            }
+            100% {
+                transform: translateY(-100px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+        
+        /* Контейнер */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Навигация */
+        .navbar {
+            padding: 25px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 100;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+        
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-green);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 20px;
+            color: var(--primary-dark);
+            animation: logoPulse 3s ease-in-out infinite;
+        }
+        
+        @keyframes logoPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        .logo-text {
+            font-size: 24px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary-green), #00B82E);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 32px;
+        }
+        
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .nav-link:hover {
+            color: var(--text-primary);
+        }
+        
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--primary-green);
+            transition: width 0.3s ease;
+        }
+        
+        .nav-link:hover::after {
+            width: 100%;
+        }
+        
+        /* Герой секция */
+        .hero {
+            padding: 100px 0 150px;
+            text-align: center;
+            position: relative;
+        }
+        
+        .hero h1 {
+            font-size: 4.5rem;
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #fff 30%, var(--primary-green) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: fadeUp 1s ease-out;
+        }
+        
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 700px;
+            margin: 0 auto 40px;
+            animation: fadeUp 1s ease-out 0.2s both;
+        }
+        
+        .cta-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 60px;
+            animation: fadeUp 1s ease-out 0.4s both;
+        }
+        
+        .btn {
+            padding: 18px 36px;
+            border-radius: var(--radius-full);
+            font-weight: 600;
+            font-size: 1rem;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .btn-primary {
+            background: var(--primary-green);
+            color: var(--primary-dark);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-primary);
+            border: 2px solid var(--surface-border);
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--primary-green);
+            color: var(--primary-green);
+            transform: translateY(-3px);
+        }
+        
+        /* Демо превью */
+        .demo-preview {
+            background: var(--surface-card);
+            border-radius: var(--radius-xl);
+            padding: 40px;
+            border: 1px solid var(--surface-border);
+            box-shadow: var(--shadow-lg);
+            max-width: 900px;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            animation: fadeUp 1s ease-out 0.6s both;
+        }
+        
+        .demo-preview::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-green), transparent);
+        }
+        
+        .demo-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .demo-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        
+        .demo-stats {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .stat-value {
+            font-weight: 700;
+            color: var(--primary-green);
+        }
+        
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        
+        .demo-accounts {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .account-item {
+            background: var(--surface-dark);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            border: 1px solid var(--surface-border);
+            transition: all 0.3s ease;
+        }
+        
+        .account-item:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary-green);
+        }
+        
+        /* Особенности */
+        .features {
+            padding: 100px 0;
+            background: rgba(10, 15, 10, 0.8);
+            backdrop-filter: blur(20px);
+            position: relative;
+            z-index: 10;
+        }
+        
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 60px;
+            background: linear-gradient(135deg, #fff 30%, var(--primary-green) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        
+        .feature-card {
+            background: var(--surface-card);
+            border-radius: var(--radius-xl);
+            padding: 40px 30px;
+            border: 1px solid var(--surface-border);
+            transition: all 0.3s ease;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-10px);
+            border-color: var(--primary-green);
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .feature-icon {
+            width: 70px;
+            height: 70px;
+            background: rgba(0, 214, 50, 0.1);
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 25px;
+            font-size: 28px;
+            color: var(--primary-green);
+            border: 2px solid rgba(0, 214, 50, 0.2);
+        }
+        
+        .feature-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+        
+        .feature-description {
+            color: var(--text-secondary);
+        }
+        
+        /* Как это работает */
+        .how-it-works {
+            padding: 100px 0;
+        }
+        
+        .steps {
+            display: flex;
+            justify-content: space-between;
+            gap: 30px;
+            position: relative;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .steps::before {
+            content: '';
+            position: absolute;
+            top: 60px;
+            left: 100px;
+            right: 100px;
+            height: 2px;
+            background: var(--surface-border);
+            z-index: 1;
+        }
+        
+        .step {
+            background: var(--surface-card);
+            border-radius: var(--radius-xl);
+            padding: 30px;
+            border: 1px solid var(--surface-border);
+            text-align: center;
+            position: relative;
+            z-index: 2;
+            flex: 1;
+            transition: all 0.3s ease;
+        }
+        
+        .step:hover {
+            border-color: var(--primary-green);
+            transform: translateY(-5px);
+        }
+        
+        .step-number {
+            width: 60px;
+            height: 60px;
+            background: var(--primary-green);
+            border-radius: var(--radius-full);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.5rem;
+            color: var(--primary-dark);
+            margin: 0 auto 20px;
+        }
+        
+        /* Футер */
+        .footer {
+            padding: 80px 0 40px;
+            background: rgba(0, 0, 0, 0.9);
+            border-top: 1px solid var(--surface-border);
+            position: relative;
+            z-index: 10;
+        }
+        
+        .footer-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 50px;
+            margin-bottom: 50px;
+        }
+        
+        .footer-column h3 {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            color: var(--primary-green);
+        }
+        
+        .footer-links {
+            list-style: none;
+        }
+        
+        .footer-links li {
+            margin-bottom: 12px;
+        }
+        
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+        
+        .footer-links a:hover {
+            color: var(--text-primary);
+        }
+        
+        .copyright {
+            text-align: center;
+            color: var(--text-tertiary);
+            padding-top: 40px;
+            border-top: 1px solid var(--surface-border);
+        }
+        
+        /* Адаптивность */
+        @media (max-width: 992px) {
+            .hero h1 {
+                font-size: 3.5rem;
+            }
+            
+            .steps {
+                flex-direction: column;
+            }
+            
+            .steps::before {
+                display: none;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.8rem;
+            }
+            
+            .nav-links {
+                display: none;
+            }
+            
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .demo-stats {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .hero h1 {
+                font-size: 2.2rem;
+            }
+            
+            .hero-subtitle {
+                font-size: 1.1rem;
+            }
+            
+            .demo-preview {
+                padding: 25px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Анимированный фон -->
+    <div class="hero-background">
+        <div class="gradient-orb"></div>
+        <div class="gradient-orb"></div>
+    </div>
+    
+    <!-- Частицы -->
+    <div class="particles" id="particles"></div>
+    
+    <!-- Навигация -->
+    <nav class="navbar container">
+        <a href="/" class="logo">
+            <div class="logo-icon">C$</div>
+            <div class="logo-text">CashApp Pro</div>
+        </a>
+        <div class="nav-links">
+            <a href="#features" class="nav-link">Возможности</a>
+            <a href="#how-it-works" class="nav-link">Как работает</a>
+            <a href="#demo" class="nav-link">Демо</a>
+        </div>
+    </nav>
+    
+    <!-- Герой секция -->
+    <section class="hero container">
+        <h1>Professional CashApp Dashboard Manager</h1>
+        <p class="hero-subtitle">
+            Создавайте профессиональные дашборды для управления аккаунтами CashApp. 
+            Современный дизайн, полная адаптивность и мощные инструменты для контроля 
+            ваших аккаунтов.
+        </p>
+        
+        <div class="cta-buttons">
+            <a href="#demo" class="btn btn-primary">
+                <i class="fas fa-play-circle"></i>
+                Посмотреть демо
+            </a>
+            <a href="#how-it-works" class="btn btn-secondary">
+                <i class="fas fa-info-circle"></i>
+                Узнать больше
+            </a>
+        </div>
+        
+        <div class="demo-preview" id="demo">
+            <div class="demo-header">
+                <h2 class="demo-title">Live Dashboard Preview</h2>
+                <div class="demo-stats">
+                    <div class="stat">
+                        <span class="stat-value">24</span>
+                        <span class="stat-label">Аккаунта</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value">18</span>
+                        <span class="stat-label">Valid</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-value">85%</span>
+                        <span class="stat-label">Успех</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="demo-accounts">
+                <div class="account-item">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="color: var(--text-tertiary); font-size: 0.9rem;">#1</span>
+                        <span style="color: #00D632; font-size: 0.8rem; font-weight: 600;">VALID</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #00D632, #00B82E); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: white;">J</div>
+                        <div>
+                            <div style="font-weight: 600;">john.doe</div>
+                            <div style="color: var(--text-secondary); font-size: 0.9rem;">john@cashapp.com</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="account-item">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="color: var(--text-tertiary); font-size: 0.9rem;">#2</span>
+                        <span style="color: #FFB800; font-size: 0.8rem; font-weight: 600;">PROCESSING</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #FFB800, #FF9D00); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: white;">S</div>
+                        <div>
+                            <div style="font-weight: 600;">sarah_m</div>
+                            <div style="color: var(--text-secondary); font-size: 0.9rem;">sarah@mail.com</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="account-item">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="color: var(--text-tertiary); font-size: 0.9rem;">#3</span>
+                        <span style="color: #00C2FF; font-size: 0.8rem; font-weight: 600;">PENDING</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #00C2FF, #0099CC); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; color: white;">M</div>
+                        <div>
+                            <div style="font-weight: 600;">mike24</div>
+                            <div style="color: var(--text-secondary); font-size: 0.9rem;">mike@cashapp.com</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Особенности -->
+    <section class="features" id="features">
+        <div class="container">
+            <h2 class="section-title">Мощные возможности</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-palette"></i>
+                    </div>
+                    <h3 class="feature-title">Профессиональный дизайн</h3>
+                    <p class="feature-description">
+                        Современный черно-зеленый стиль CashApp с анимациями, градиентами и полной адаптивностью для всех устройств.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-mobile-alt"></i>
+                    </div>
+                    <h3 class="feature-title">Полная адаптивность</h3>
+                    <p class="feature-description">
+                        Идеальное отображение на компьютерах, планшетах и телефонах. Автоматическая адаптация под любой экран.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h3 class="feature-title">Система безопасности</h3>
+                    <p class="feature-description">
+                        Встроенная система верификации "Огран" для защиты дашбордов. Контроль доступа и управление через Telegram бота.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3 class="feature-title">Детальная статистика</h3>
+                    <p class="feature-description">
+                        Подробные графики и метрики по всем аккаунтам. Отслеживание статусов, тегов и производительности в реальном времени.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-tags"></i>
+                    </div>
+                    <h3 class="feature-title">Умные теги</h3>
+                    <p class="feature-description">
+                        Система тегов для категоризации аккаунтов. Автоматическая цветовая кодировка и фильтрация по различным параметрам.
+                    </p>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <h3 class="feature-title">Telegram интеграция</h3>
+                    <p class="feature-description">
+                        Полное управление через Telegram бота. Создание дашбордов, добавление аккаунтов, настройка статусов и тегов.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Как это работает -->
+    <section class="how-it-works" id="how-it-works">
+        <div class="container">
+            <h2 class="section-title">Как это работает</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Создание дашборда</h3>
+                    <p>Через Telegram бота создайте новый дашборд с уникальным дизайном CashApp.</p>
+                </div>
+                
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Добавление аккаунтов</h3>
+                    <p>Загружайте аккаунты в формате email:password. Система автоматически их обработает.</p>
+                </div>
+                
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Настройка и управление</h3>
+                    <p>Настраивайте статусы, добавляйте теги и отслеживайте статистику через интуитивный интерфейс.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Футер -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-column">
+                    <h3>CashApp Pro</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                        Профессиональная платформа для управления дашбордами CashApp с современным дизайном и мощными инструментами.
+                    </p>
+                </div>
+                
+                <div class="footer-column">
+                    <h3>Быстрые ссылки</h3>
+                    <ul class="footer-links">
+                        <li><a href="#features">Возможности</a></li>
+                        <li><a href="#how-it-works">Как работает</a></li>
+                        <li><a href="#demo">Демо</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-column">
+                    <h3>Технологии</h3>
+                    <ul class="footer-links">
+                        <li>Python + AIOgram</li>
+                        <li>HTML5 + CSS3 + JavaScript</li>
+                        <li>Telegram Bot API</li>
+                        <li>Responsive Design</li>
+                    </ul>
+                </div>
+                
+                <div class="footer-column">
+                    <h3>Контакты</h3>
+                    <ul class="footer-links">
+                        <li><i class="fas fa-paper-plane"></i> Telegram: @cashapp_pro_bot</li>
+                        <li><i class="fas fa-code"></i> GitHub: cashapp-pro</li>
+                        <li><i class="fas fa-shield-alt"></i> Безопасность: 256-bit SSL</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="copyright">
+                <p>© 2024 CashApp Pro Dashboard Manager. Все права защищены.</p>
+                <p style="margin-top: 10px; font-size: 0.9rem;">Professional CashApp Dashboard Solution</p>
+            </div>
+        </div>
+    </footer>
+    
+    <script>
+        // Создание частиц
+        function createParticles() {
+            const particlesContainer = document.getElementById('particles');
+            const particleCount = 50;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.classList.add('particle');
+                
+                // Случайные параметры
+                const size = Math.random() * 3 + 1;
+                const left = Math.random() * 100;
+                const delay = Math.random() * 15;
+                const duration = Math.random() * 10 + 10;
+                
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+                particle.style.left = `${left}vw`;
+                particle.style.animationDelay = `${delay}s`;
+                particle.style.animationDuration = `${duration}s`;
+                particle.style.opacity = Math.random() * 0.5 + 0.3;
+                
+                particlesContainer.appendChild(particle);
+            }
+        }
+        
+        // Плавная прокрутка
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href');
+                if (targetId === '#') return;
+                
+                const targetElement = document.querySelector(targetId);
+                if (targetElement) {
+                    window.scrollTo({
+                        top: targetElement.offsetTop - 80,
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+        
+        // Параллакс эффект
+        window.addEventListener('mousemove', function(e) {
+            const x = e.clientX / window.innerWidth;
+            const y = e.clientY / window.innerHeight;
+            
+            const orbs = document.querySelectorAll('.gradient-orb');
+            orbs[0].style.transform = `translate(${x * 40}px, ${y * 40}px)`;
+            orbs[1].style.transform = `translate(${-x * 60}px, ${-y * 60}px)`;
+        });
+        
+        // Анимация при скролле
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+        
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+        
+        // Наблюдаем за элементами
+        document.querySelectorAll('.feature-card, .step').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(20px)';
+            el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(el);
+        });
+        
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            createParticles();
+            
+            // Автоматическое обновление времени в демо
+            function updateDemoTime() {
+                const now = new Date();
+                const timeString = now.toLocaleTimeString('ru-RU', { 
+                    hour: '2-digit', 
+                    minute: '2-digit'
+                });
+                
+                const demoTitle = document.querySelector('.demo-title');
+                if (demoTitle) {
+                    demoTitle.textContent = `Live Dashboard • ${timeString}`;
+                }
+            }
+            
+            setInterval(updateDemoTime, 60000);
+            updateDemoTime();
+        });
+        
+        // Анимация при загрузке
+        window.addEventListener('load', function() {
+            document.body.style.opacity = '0';
+            document.body.style.transition = 'opacity 0.8s ease';
+            
+            setTimeout(() => {
+                document.body.style.opacity = '1';
+            }, 100);
+        });
+    </script>
+</body>
+</html>'''
 
 # Глобальный менеджер сайтов
 site_manager = SiteManager()
@@ -2018,40 +2959,49 @@ def is_user_allowed(user: types.User) -> bool:
     username = f"@{user.username}" if user.username else None
     return username in ALLOWED_USERS
 
-# ========== ИСПРАВЛЕННЫЙ ДЕКОРАТОР ДЛЯ ПРОВЕРКИ ДОСТУПА ==========
-def require_access(func: Callable) -> Callable:
+async def check_access(message: types.Message) -> bool:
+    """Проверяет доступ и отправляет сообщение, если доступ запрещен"""
+    if not is_user_allowed(message.from_user):
+        await message.answer(
+            "⛔ <b>Доступ запрещен</b>\n\n"
+            "Этот бот доступен только для определенных пользователей.\n"
+            "Если вы считаете, что это ошибка, свяжитесь с администратором."
+        )
+        return False
+    return True
+
+# ========== ДЕКОРАТОР ДЛЯ ПРОВЕРКИ ДОСТУПА ==========
+def require_access(func):
     """Декоратор для проверки доступа к командам"""
-    @wraps(func)
+    import inspect
+    sig = inspect.signature(func)
+    
     async def wrapper(*args, **kwargs):
         # Ищем объект message в аргументах
         message_or_callback = None
-        
-        # Ищем в args
         for arg in args:
             if isinstance(arg, (types.Message, types.CallbackQuery)):
                 message_or_callback = arg
                 break
         
-        # Ищем в kwargs
         if not message_or_callback:
-            for value in kwargs.values():
+            # Если message не найден в args, ищем в kwargs
+            for key, value in kwargs.items():
                 if isinstance(value, (types.Message, types.CallbackQuery)):
                     message_or_callback = value
                     break
         
-        # Если не нашли, пропускаем проверку
         if not message_or_callback:
+            # Если все еще не нашли, попробуем первый подходящий аргумент
             return await func(*args, **kwargs)
         
-        # Получаем пользователя
         if isinstance(message_or_callback, types.CallbackQuery):
-            user = message_or_callback.from_user
             message = message_or_callback.message
-        else:
             user = message_or_callback.from_user
+        else:
             message = message_or_callback
+            user = message_or_callback.from_user
         
-        # Проверяем доступ
         if not is_user_allowed(user):
             if isinstance(message_or_callback, types.CallbackQuery):
                 await message_or_callback.answer("⛔ Доступ запрещен", show_alert=True)
@@ -2063,15 +3013,20 @@ def require_access(func: Callable) -> Callable:
                 )
             return
         
-        # Выполняем функцию
-        return await func(*args, **kwargs)
+        # Фильтруем kwargs, оставляя только те параметры, которые принимает функция
+        filtered_kwargs = {}
+        for param_name in sig.parameters.keys():
+            if param_name in kwargs:
+                filtered_kwargs[param_name] = kwargs[param_name]
+        
+        return await func(*args, **filtered_kwargs)
     
     return wrapper
 
 # ========== ОБРАБОТЧИКИ КОМАНД ==========
 @dp.message(Command("start"))
 @require_access
-async def cmd_start(message: types.Message):
+async def cmd_start(message: types.Message, **kwargs):  # Добавлен **kwargs
     """Главное меню"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -2678,13 +3633,24 @@ async def select_site_for_tags_callback(callback: types.CallbackQuery):
     site_id = callback.data.replace("select_site_for_tags_", "")
     
     if site_id not in site_manager.sites:
-        await callback.answer("❌ Дашборд не найден")
+        # Проверяем, есть ли message для ответа
+        if callback.message:
+            await callback.answer("❌ Дашборд не найден")
+        else:
+            # Если нет сообщения, создаем новое через бота
+            # (нужен chat_id, который можно получить из callback)
+            pass
         return
     
     site = site_manager.sites[site_id]
     
     if not site.accounts:
-        await callback.message.answer("❌ В этом дашборде нет аккаунтов!")
+        # Проверяем message перед использованием
+        if callback.message:
+            await callback.message.answer("❌ В этом дашборде нет аккаунтов!")
+        else:
+            # Если сообщения нет, отвечаем callback
+            await callback.answer("❌ В этом дашборде нет аккаунтов!", show_alert=True)
         return
     
     # Создаем клавиатуру с аккаунтами
@@ -2892,14 +3858,13 @@ async def process_custom_tag(message: types.Message, state: FSMContext):
         await message.answer(f"✅ Тег '{tag}' добавлен")
         # Возвращаемся к управлению тегами
         await select_account_for_tags_callback(
-            callback=types.CallbackQuery(
+            types.CallbackQuery(
                 id="temp",
                 from_user=message.from_user,
                 chat_instance="temp",
-                data=f"select_account_{site_id}_{account_index}",
-                message=message  # Передаем оригинальное сообщение
+                data=f"select_account_{site_id}_{account_index}"
             ),
-            state=state
+            state
         )
     else:
         await message.answer("❌ Ошибка при добавлении тега")
@@ -3100,20 +4065,15 @@ async def manage_status_site_callback(callback: types.CallbackQuery):
     """Управление статусами через меню сайта"""
     site_id = callback.data.replace("manage_status_site_", "")
     
-    if site_id not in site_manager.sites:
-        await callback.answer("❌ Дашборд не найден")
-        return
-    
-    # Прямой вызов нужной функции вместо создания фейкового callback
-    await select_site_for_status_callback(
-        callback=types.CallbackQuery(
-            id=callback.id,
-            from_user=callback.from_user,
-            chat_instance=callback.chat_instance,
-            data=f"select_site_for_status_{site_id}",
-            message=callback.message
-        )
+    # Используем оригинальный callback, а не создаем новый
+    fake_callback = types.CallbackQuery(
+        id=callback.id,
+        from_user=callback.from_user,
+        chat_instance=callback.chat_instance,
+        data=f"select_site_for_status_{site_id}",
+        message=callback.message  # Сохраняем оригинальное сообщение
     )
+    await select_site_for_status_callback(fake_callback)
 
 # ========== КОМАНДА ДЛЯ УПРАВЛЕНИЯ ЯРЛЫКАМИ ЧЕРЕЗ САЙТ ==========
 @dp.callback_query(F.data.startswith("manage_tags_site_"))
@@ -3122,20 +4082,15 @@ async def manage_tags_site_callback(callback: types.CallbackQuery):
     """Управление ярлыками через меню сайта"""
     site_id = callback.data.replace("manage_tags_site_", "")
     
-    if site_id not in site_manager.sites:
-        await callback.answer("❌ Дашборд не найден")
-        return
-    
-    # Прямой вызов нужной функции
-    await select_site_for_tags_callback(
-        callback=types.CallbackQuery(
-            id=callback.id,
-            from_user=callback.from_user,
-            chat_instance=callback.chat_instance,
-            data=f"select_site_for_tags_{site_id}",
-            message=callback.message
-        )
+    # Используем оригинальный callback, а не создаем новый
+    fake_callback = types.CallbackQuery(
+        id=callback.id,
+        from_user=callback.from_user,
+        chat_instance=callback.chat_instance,
+        data=f"select_site_for_tags_{site_id}",
+        message=callback.message  # Сохраняем оригинальное сообщение
     )
+    await select_site_for_tags_callback(fake_callback)
 
 # ========== КОМАНДА ДЛЯ СТАТИСТИКИ САЙТА ==========
 @dp.callback_query(F.data.startswith("stats_site_"))
@@ -3191,7 +4146,7 @@ async def stats_site_callback(callback: types.CallbackQuery):
         reply_markup=keyboard
     )
 
-# ========== УПРАВЛЕНИЕ ОГРАНОМ ==========
+# ========== УПРАВЛЕНИЕ ОГРАНОМ (уже было в предыдущем коде) ==========
 @dp.callback_query(F.data == "manage_ogran")
 @require_access
 async def manage_ogran_callback(callback: types.CallbackQuery):
@@ -3563,7 +4518,6 @@ async def change_ogran_callback(callback: types.CallbackQuery, state: FSMContext
 @require_access
 async def back_to_main_callback(callback: types.CallbackQuery):
     """Возврат в главное меню"""
-    # Используем оригинальный callback для вызова cmd_start
     await cmd_start(callback.message)
 
 @dp.callback_query(F.data.startswith("add_to_site_"))
