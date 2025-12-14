@@ -19,7 +19,8 @@ import base64
 
 # ========== КОНФИГУРАЦИЯ ==========
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "8534738281:AAGrXV_OEEKdP1hEGKWNTzD1WzStkF6d2Ys")
-BASE_URL = os.getenv("BASE_URL", "https://cashapp-platform.onrender.com")
+# Добавьте URL вашего сайта для публикации дашбордов
+SITE_BASE_URL = os.getenv("SITE_BASE_URL", "https://your-site.com/dashboards")  # <- Ваш сайт
 
 # Настройка логирования
 logging.basicConfig(
@@ -81,7 +82,6 @@ class SiteManager:
         """Загружаем шаблоны"""
         self.html_templates = {
             "cashapp_pro": self.get_cashapp_pro_template(),
-            "landing": self.get_landing_page()
         }
         
     def create_site(self, name: str, description: str) -> SiteConfig:
@@ -150,6 +150,15 @@ class SiteManager:
         
         logger.info(f"Обновлен сайт {site.name} (файл: {filename})")
         return filename
+    
+    def get_site_url(self, site_id: str) -> str:
+        """Получить URL дашборда в интернете"""
+        if site_id not in self.sites:
+            return None
+        
+        site = self.sites[site_id]
+        # Генерируем URL в формате: https://ваш-сайт.com/dashboards/site_id.html
+        return f"{SITE_BASE_URL}/site_{site_id}.html"
     
     def generate_html(self, site: SiteConfig) -> str:
         """Генерация HTML для сайта"""
@@ -433,7 +442,8 @@ class SiteManager:
                 logger.info(f"Загружено {len(self.sites)} сайтов из файла")
         except Exception as e:
             logger.error(f"Ошибка загрузки из JSON: {e}")
-    
+
+# ========== ШАБЛОН HTML (упрощенная версия) ==========
     def get_cashapp_pro_template(self) -> str:
         """ПРОФЕССИОНАЛЬНЫЙ CASHAPP ШАБЛОН С ОГРАНОМ - ЗЕЛЕНЫЙ ДИЗАЙН"""
         return '''<!DOCTYPE html>
@@ -2896,480 +2906,14 @@ class SiteManager:
 # Глобальный менеджер сайтов
 site_manager = SiteManager()
 
-# ========== ДОПОЛНИТЕЛЬНЫЕ ОБРАБОТЧИКИ ==========
-
-@dp.callback_query(F.data.startswith("manage_tags_site_"))
-async def manage_tags_site_callback(callback: types.CallbackQuery):
-    """Управление тегами для конкретного сайта"""
-    site_id = callback.data.replace("manage_tags_site_", "")
-    
-    if site_id not in site_manager.sites:
-        await callback.answer("❌ Дашборд не найден")
-        return
-    
-    site = site_manager.sites[site_id]
-    
-    if not site.accounts:
-        await callback.answer("❌ Нет аккаунтов для управления тегами")
-        return
-    
-    # Создаем клавиатуру с аккаунтами
-    keyboard_buttons = []
-    
-    for i, acc in enumerate(site.accounts[:20], 1):  # Ограничиваем 20 аккаунтами
-        username = ""
-        if acc.get("email"):
-            username = acc.get("email").split('@')[0]
-        elif acc.get("phone"):
-            username = acc.get("phone")
-        else:
-            username = f"Account #{i}"
-        
-        current_tags = acc.get("tags", [])
-        tags_text = f" ({len(current_tags)} тег.)" if current_tags else ""
-        
-        keyboard_buttons.append([
-            InlineKeyboardButton(
-                text=f"#{i}: {username[:15]}{'...' if len(username) > 15 else ''}{tags_text}",
-                callback_data=f"tag_account_{site_id}_{i-1}"
-            )
-        ])
-    
-    keyboard_buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data=f"site_actions_{site_id}")])
-    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
-    
-    await callback.message.answer(
-        f"🏷️ <b>Управление ярлыками</b>\n\n"
-        f"💎 <b>Дашборд:</b> {site.name}\n"
-        f"📊 <b>Аккаунтов:</b> {len(site.accounts)}\n\n"
-        f"<b>Выберите аккаунт:</b>",
-        reply_markup=keyboard
-    )
-
-@dp.callback_query(F.data.startswith("tag_account_"))
-async def tag_account_callback(callback: types.CallbackQuery):
-    """Выбор тега для аккаунта"""
-    parts = callback.data.replace("tag_account_", "").split("_")
-    if len(parts) < 2:
-        await callback.answer("❌ Ошибка данных")
-        return
-    
-    site_id = parts[0]
-    account_index = int(parts[1])
-    
-    if site_id not in site_manager.sites:
-        await callback.answer("❌ Дашборд не найден")
-        return
-    
-    site = site_manager.sites[site_id]
-    
-    if account_index >= len(site.accounts):
-        await callback.answer("❌ Аккаунт не найден")
-        return
-    
-    account = site.accounts[account_index]
-    username = ""
-    if account.get("email"):
-        username = account.get("email")
-    elif account.get("phone"):
-        username = account.get("phone")
-    else:
-        username = f"Account #{account_index + 1}"
-    
-    current_tags = account.get("tags", [])
-    current_tags_text = ", ".join(current_tags) if current_tags else "Нет тегов"
-    
-    # Создаем клавиатуру с предустановленными тегами
-    keyboard_buttons = []
-    row = []
-    
-    for i, tag in enumerate(PREDEFINED_TAGS):
-        row.append(InlineKeyboardButton(
-            text=f"{'✅ ' if tag in current_tags else ''}{tag}",
-            callback_data=f"apply_tag_{site_id}_{account_index}_{tag}"
-        ))
-        
-        # Разбиваем на строки по 2 тега
-        if (i + 1) % 2 == 0:
-            keyboard_buttons.append(row)
-            row = []
-    
-    if row:
-        keyboard_buttons.append(row)
-    
-    keyboard_buttons.append([InlineKeyboardButton(text="➕ Свой тег", callback_data=f"custom_tag_{site_id}_{account_index}")])
-    keyboard_buttons.append([InlineKeyboardButton(text="❌ Удалить все теги", callback_data=f"remove_all_tags_{site_id}_{account_index}")])
-    keyboard_buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data=f"manage_tags_site_{site_id}")])
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
-    
-    await callback.message.answer(
-        f"🏷️ <b>Управление тегами</b>\n\n"
-        f"💎 <b>Дашборд:</b> {site.name}\n"
-        f"👤 <b>Аккаунт:</b> {username}\n"
-        f"📊 <b>Текущие теги:</b> {current_tags_text}\n\n"
-        f"<b>Выберите теги:</b>",
-        reply_markup=keyboard
-    )
-
-@dp.callback_query(F.data.startswith("apply_tag_"))
-async def apply_tag_callback(callback: types.CallbackQuery):
-    """Применение тега к аккаунту"""
-    parts = callback.data.replace("apply_tag_", "").split("_")
-    if len(parts) < 4:
-        await callback.answer("❌ Ошибка данных")
-        return
-    
-    site_id = parts[0]
-    account_index = int(parts[1])
-    tag = "_".join(parts[2:])  # Восстанавливаем тег, который мог содержать "_"
-    
-    if site_id not in site_manager.sites:
-        await callback.answer("❌ Дашборд не найден")
-        return
-    
-    # Добавляем или удаляем тег
-    site = site_manager.sites[site_id]
-    account = site.accounts[account_index]
-    
-    if "tags" not in account:
-        account["tags"] = []
-    
-    if tag in account["tags"]:
-        account["tags"].remove(tag)
-        action = "удален"
-    else:
-        account["tags"].append(tag)
-        action = "добавлен"
-    
-    # Сохраняем изменения
-    site_manager.save_site_html(site)
-    site_manager.save_to_json()
-    
-    await callback.answer(f"✅ Тег '{tag}' {action}")
-    
-    # Обновляем сообщение
-    await tag_account_callback(callback)
-
-@dp.callback_query(F.data.startswith("custom_tag_"))
-async def custom_tag_callback(callback: types.CallbackQuery, state: FSMContext):
-    """Ввод своего тега"""
-    parts = callback.data.replace("custom_tag_", "").split("_")
-    if len(parts) < 2:
-        await callback.answer("❌ Ошибка данных")
-        return
-    
-    site_id = parts[0]
-    account_index = int(parts[1])
-    
-    await state.update_data(site_id=site_id, account_index=account_index)
-    
-    await callback.message.answer(
-        "🏷️ <b>Введите свой тег:</b>\n\n"
-        "Примеры:\n"
-        "• High Balance\n"
-        "• Card Linked\n"
-        "• US Verified\n\n"
-        "❌ /cancel для отмены"
-    )
-    await state.set_state(BotStates.waiting_for_tag)
-
-@dp.message(BotStates.waiting_for_tag)
-async def process_custom_tag(message: types.Message, state: FSMContext):
-    """Обработка ввода кастомного тега"""
-    if message.text == "/cancel":
-        await state.clear()
-        await message.answer("❌ Отменено")
-        return
-    
-    tag = message.text.strip()
-    
-    data = await state.get_data()
-    site_id = data.get("site_id")
-    account_index = data.get("account_index")
-    
-    if not site_id or site_id not in site_manager.sites:
-        await message.answer("❌ Ошибка: дашборд не найден")
-        await state.clear()
-        return
-    
-    if account_index is None or account_index >= len(site_manager.sites[site_id].accounts):
-        await message.answer("❌ Ошибка: аккаунт не найден")
-        await state.clear()
-        return
-    
-    # Добавляем тег
-    site = site_manager.sites[site_id]
-    account = site.accounts[account_index]
-    
-    if "tags" not in account:
-        account["tags"] = []
-    
-    if tag not in account["tags"]:
-        account["tags"].append(tag)
-    
-    # Сохраняем изменения
-    site_manager.save_site_html(site)
-    site_manager.save_to_json()
-    
-    await message.answer(f"✅ Тег '{tag}' добавлен")
-    await state.clear()
-
-@dp.callback_query(F.data.startswith("remove_all_tags_"))
-async def remove_all_tags_callback(callback: types.CallbackQuery):
-    """Удаление всех тегов"""
-    parts = callback.data.replace("remove_all_tags_", "").split("_")
-    if len(parts) < 2:
-        await callback.answer("❌ Ошибка данных")
-        return
-    
-    site_id = parts[0]
-    account_index = int(parts[1])
-    
-    if site_id not in site_manager.sites:
-        await callback.answer("❌ Дашборд не найден")
-        return
-    
-    site = site_manager.sites[site_id]
-    account = site.accounts[account_index]
-    
-    account["tags"] = []
-    
-    # Сохраняем изменения
-    site_manager.save_site_html(site)
-    site_manager.save_to_json()
-    
-    await callback.answer("✅ Все теги удалены")
-    await tag_account_callback(callback)
-
-@dp.callback_query(F.data.startswith("manage_status_site_"))
-async def manage_status_site_callback(callback: types.CallbackQuery):
-    """Управление статусами для конкретного сайта"""
-    site_id = callback.data.replace("manage_status_site_", "")
-    
-    if site_id not in site_manager.sites:
-        await callback.answer("❌ Дашборд не найден")
-        return
-    
-    site = site_manager.sites[site_id]
-    
-    if not site.accounts:
-        await callback.answer("❌ Нет аккаунтов для управления статусами")
-        return
-    
-    # Создаем клавиатуру с аккаунтами
-    keyboard_buttons = []
-    
-    for i, acc in enumerate(site.accounts[:20], 1):  # Ограничиваем 20 аккаунтами
-        username = ""
-        if acc.get("email"):
-            username = acc.get("email").split('@')[0]
-        elif acc.get("phone"):
-            username = acc.get("phone")
-        else:
-            username = f"Account #{i}"
-        
-        status = acc.get("status", "pending")
-        status_emoji = {
-            "valid": "✅",
-            "processing": "🔄",
-            "pending": "⏳",
-            "banned": "❌"
-        }.get(status, "❓")
-        
-        keyboard_buttons.append([
-            InlineKeyboardButton(
-                text=f"{status_emoji} #{i}: {username[:15]}{'...' if len(username) > 15 else ''}",
-                callback_data=f"status_account_{site_id}_{i-1}"
-            )
-        ])
-    
-    keyboard_buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data=f"site_actions_{site_id}")])
-    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
-    
-    await callback.message.answer(
-        f"🔄 <b>Управление статусами</b>\n\n"
-        f"💎 <b>Дашборд:</b> {site.name}\n"
-        f"📊 <b>Аккаунтов:</b> {len(site.accounts)}\n\n"
-        f"<b>Выберите аккаунт:</b>",
-        reply_markup=keyboard
-    )
-
-@dp.callback_query(F.data.startswith("status_account_"))
-async def status_account_callback(callback: types.CallbackQuery):
-    """Выбор статуса для аккаунта"""
-    parts = callback.data.replace("status_account_", "").split("_")
-    if len(parts) < 2:
-        await callback.answer("❌ Ошибка данных")
-        return
-    
-    site_id = parts[0]
-    account_index = int(parts[1])
-    
-    if site_id not in site_manager.sites:
-        await callback.answer("❌ Дашборд не найден")
-        return
-    
-    site = site_manager.sites[site_id]
-    
-    if account_index >= len(site.accounts):
-        await callback.answer("❌ Аккаунт не найден")
-        return
-    
-    account = site.accounts[account_index]
-    username = ""
-    if account.get("email"):
-        username = account.get("email")
-    elif account.get("phone"):
-        username = account.get("phone")
-    else:
-        username = f"Account #{account_index + 1}"
-    
-    current_status = account.get("status", "pending")
-    
-    # Создаем клавиатуру со статусами
-    keyboard_buttons = [
-        [
-            InlineKeyboardButton(
-                text=f"{'✅ ' if current_status == 'valid' else ''}✅ Valid",
-                callback_data=f"set_status_{site_id}_{account_index}_valid"
-            ),
-            InlineKeyboardButton(
-                text=f"{'🔄 ' if current_status == 'processing' else ''}🔄 Processing",
-                callback_data=f"set_status_{site_id}_{account_index}_processing"
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text=f"{'⏳ ' if current_status == 'pending' else ''}⏳ Pending",
-                callback_data=f"set_status_{site_id}_{account_index}_pending"
-            ),
-            InlineKeyboardButton(
-                text=f"{'❌ ' if current_status == 'banned' else ''}❌ Banned",
-                callback_data=f"set_status_{site_id}_{account_index}_banned"
-            )
-        ],
-        [
-            InlineKeyboardButton(text="🔙 Назад", callback_data=f"manage_status_site_{site_id}")
-        ]
-    ]
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
-    
-    await callback.message.answer(
-        f"🔄 <b>Изменение статуса</b>\n\n"
-        f"💎 <b>Дашборд:</b> {site.name}\n"
-        f"👤 <b>Аккаунт:</b> {username}\n"
-        f"📊 <b>Текущий статус:</b> {current_status.upper()}\n\n"
-        f"<b>Выберите новый статус:</b>",
-        reply_markup=keyboard
-    )
-
-@dp.callback_query(F.data.startswith("set_status_"))
-async def set_status_callback(callback: types.CallbackQuery):
-    """Установка статуса аккаунта"""
-    parts = callback.data.replace("set_status_", "").split("_")
-    if len(parts) < 3:
-        await callback.answer("❌ Ошибка данных")
-        return
-    
-    site_id = parts[0]
-    account_index = int(parts[1])
-    status = parts[2]
-    
-    if site_id not in site_manager.sites:
-        await callback.answer("❌ Дашборд не найден")
-        return
-    
-    # Обновляем статус
-    success = site_manager.update_account_status(site_id, account_index, status)
-    
-    if success:
-        emoji = {
-            "valid": "✅",
-            "processing": "🔄",
-            "pending": "⏳",
-            "banned": "❌"
-        }.get(status, "❓")
-        
-        await callback.answer(f"{emoji} Статус изменен на {status.upper()}")
-        
-        # Обновляем сообщение
-        await status_account_callback(callback)
-    else:
-        await callback.answer("❌ Ошибка при изменении статуса")
-
-@dp.callback_query(F.data.startswith("stats_site_"))
-async def stats_site_callback(callback: types.CallbackQuery):
-    """Статистика сайта"""
-    site_id = callback.data.replace("stats_site_", "")
-    
-    if site_id not in site_manager.sites:
-        await callback.answer("❌ Дашборд не найден")
-        return
-    
-    site = site_manager.sites[site_id]
-    stats = site_manager.calculate_stats(site.accounts)
-    ogran_status = site_manager.get_ogran_status(site_id)
-    
-    # Создаем текстовую статистику
-    status_emojis = {
-        "valid": "✅",
-        "processing": "🔄",
-        "pending": "⏳",
-        "banned": "❌"
-    }
-    
-    stats_text = f"📊 <b>Статистика дашборда</b>\n\n"
-    stats_text += f"💎 <b>Название:</b> {site.name}\n"
-    stats_text += f"📝 <b>Описание:</b> {site.description[:50]}{'...' if len(site.description) > 50 else ''}\n"
-    stats_text += f"🕐 <b>Создан:</b> {site.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
-    
-    stats_text += f"<b>📈 Общая статистика:</b>\n"
-    stats_text += f"• Всего аккаунтов: {stats['total']}\n"
-    stats_text += f"• Всего тегов: {stats['tags_count']}\n\n"
-    
-    stats_text += f"<b>📊 Статусы аккаунтов:</b>\n"
-    for status, count in stats.items():
-        if status in status_emojis:
-            emoji = status_emojis[status]
-            stats_text += f"• {emoji} {status.upper()}: {count}\n"
-    
-    if ogran_status and ogran_status["active"]:
-        progress = int((ogran_status["current"] / ogran_status["required"]) * 100) if ogran_status["required"] > 0 else 0
-        stats_text += f"\n<b>🔒 Огран:</b>\n"
-        stats_text += f"• Статус: Активен\n"
-        stats_text += f"• Требуется: {ogran_status['required']} аккаунтов\n"
-        stats_text += f"• Добавлено: {ogran_status['current']} аккаунтов\n"
-        stats_text += f"• Осталось: {ogran_status['remaining']} аккаунтов\n"
-        stats_text += f"• Прогресс: {progress}%\n"
-        
-        if ogran_status["completed"]:
-            stats_text += f"• ✅ Условия выполнены!\n"
-    
-    stats_text += f"\n<b>🖼️ Логотип:</b> {'Загружен' if site.logo_image else 'По умолчанию'}\n"
-    stats_text += f"<b>🎨 Тема:</b> {site.theme}\n"
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="📁 Получить файл", callback_data=f"get_site_{site_id}"),
-            InlineKeyboardButton(text="🔄 Обновить", callback_data=f"stats_site_{site_id}")
-        ],
-        [
-            InlineKeyboardButton(text="🔙 Назад", callback_data=f"site_actions_{site_id}")
-        ]
-    ])
-    
-    await callback.message.answer(stats_text, reply_markup=keyboard)
-
-
-
 # ========== СОСТОЯНИЯ ДЛЯ БОТА ==========
 class BotStates(StatesGroup):
     waiting_for_site_name = State()
     waiting_for_site_description = State()
     waiting_for_accounts = State()
     waiting_for_tag = State()
+    waiting_for_account_index = State()
+    waiting_for_status = State()
     waiting_for_ogran_accounts = State()
 
 # ========== ПРЕДУСТАНОВЛЕННЫЕ ТЕГИ ==========
@@ -3379,6 +2923,9 @@ PREDEFINED_TAGS = [
     "Active", "Limited", "High Balance", "No Balance", "US Based",
     "Card Linked", "Direct Deposit", "Instant Transfer", "Bitcoin Enabled"
 ]
+
+# ========== СТАТУСЫ АККАУНТОВ ==========
+ACCOUNT_STATUSES = ["valid", "processing", "pending", "banned"]
 
 # ========== ОБРАБОТЧИКИ КОМАНД ==========
 @dp.message(Command("start"))
@@ -3396,9 +2943,6 @@ async def cmd_start(message: types.Message):
         [
             InlineKeyboardButton(text="📊 Мои дашборды", callback_data="list_sites"),
             InlineKeyboardButton(text="🔒 Управление Ограном", callback_data="manage_ogran")
-        ],
-        [
-            InlineKeyboardButton(text="🚀 Открыть лендинг", callback_data="open_landing")
         ]
     ])
     
@@ -3414,63 +2958,12 @@ async def cmd_start(message: types.Message):
         reply_markup=keyboard
     )
 
-@dp.callback_query(F.data == "open_landing")
-async def open_landing_callback(callback: types.CallbackQuery):
-    """Открытие лендинга"""
-    html_content = site_manager.get_landing_page()
-    
-    os.makedirs("sites", exist_ok=True)
-    
-    filename = f"sites/landing_page.html"
-    
-    with open(filename, 'w', encoding='utf-8') as f:
-        f.write(html_content)
-    
-    # Генерируем URL
-    landing_url = f"/{filename}"
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="🌐 Открыть лендинг", callback_data=f"open_landing_file")
-        ]
-    ])
-    
-    await callback.message.answer(
-        f"🌐 <b>CashApp Pro Landing Page</b>\n\n"
-        f"✅ Красивый лендинг создан!\n"
-        f"🔗 <b>Файл:</b> <code>{filename}</code>\n\n"
-        f"✨ <b>Особенности:</b>\n"
-        f"• Современный дизайн с анимациями\n"
-        f"• Анимированный фон с частицами\n"
-        f"• Полная адаптивность\n"
-        f"• Демо превью дашборда\n"
-        f"• Секция с возможностями\n"
-        f"• Пошаговая инструкция",
-        reply_markup=keyboard
-    )
-
-@dp.callback_query(F.data == "open_landing_file")
-async def open_landing_file_callback(callback: types.CallbackQuery):
-    """Открытие лендинга через документ"""
-    try:
-        with open("sites/landing_page.html", "rb") as file:
-            await bot.send_document(
-                chat_id=callback.from_user.id,
-                document=types.BufferedInputFile(
-                    file=file.read(),
-                    filename="cashapp_pro_landing.html"
-                ),
-                caption="🌐 <b>CashApp Pro Landing Page</b>\n\nСкачайте файл и откройте в браузере"
-            )
-    except Exception as e:
-        await callback.answer(f"Ошибка: {e}")
-
 @dp.callback_query(F.data == "create_site")
 async def create_site_callback(callback: types.CallbackQuery, state: FSMContext):
     """Создание нового сайта"""
     await callback.message.answer(
         "🆕 <b>Создание профессионального CashApp дашборда</b>\n\n"
-        "Введите название:"
+        "Введите название дашборда:"
     )
     await state.set_state(BotStates.waiting_for_site_name)
 
@@ -3495,16 +2988,12 @@ async def process_site_description(message: types.Message, state: FSMContext):
     # Создаем сайт
     site = site_manager.create_site(site_name, site_description)
     
-    # Получаем путь к файлу
-    filename = f"sites/site_{site.site_id}.html"
-    site_url = f"{BASE_URL}/{filename}"
+    # Получаем URL дашборда
+    site_url = site_manager.get_site_url(site.site_id)
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🌐 Открыть сайт", url=site_url),
-            InlineKeyboardButton(text="📁 Получить файл", callback_data=f"get_site_{site.site_id}")
-        ],
-        [
+            InlineKeyboardButton(text="🌐 Открыть дашборд", url=site_url),
             InlineKeyboardButton(text="📝 Добавить аккаунты", callback_data=f"add_to_site_{site.site_id}")
         ],
         [
@@ -3518,8 +3007,7 @@ async def process_site_description(message: types.Message, state: FSMContext):
     await message.answer(
         f"✅ <b>Профессиональный CashApp дашборд создан!</b>\n\n"
         f"💎 <b>Название:</b> {site.name}\n"
-        f"🔗 <b>Ссылка:</b> {site_url}\n"
-        f"📁 <b>Файл:</b> <code>{filename}</code>\n"
+        f"🔗 <b>Ссылка:</b> <code>{site_url}</code>\n"
         f"📝 <b>Описание:</b> {site.description}\n\n"
         f"✨ <b>Функции:</b>\n"
         f"• Профессиональный CashApp дизайн\n"
@@ -3528,49 +3016,13 @@ async def process_site_description(message: types.Message, state: FSMContext):
         f"• Автоматический логотип CashApp\n"
         f"• Система Ограна для верификации\n\n"
         f"🎯 <b>Рекомендации:</b>\n"
-        f"1. Скачайте файл дашборда\n"
-        f"2. Добавьте аккаунты\n"
-        f"3. Настройте статусы и ярлыки\n"
-        f"4. Используйте Огран для верификации",
+        f"1. Добавьте аккаунты\n"
+        f"2. Настройте статусы и ярлыки\n"
+        f"3. Используйте Огран для верификации",
         reply_markup=keyboard
     )
     
     await state.clear()
-
-@dp.callback_query(F.data.startswith("get_site_"))
-async def get_site_file_callback(callback: types.CallbackQuery):
-    """Получение файла сайта с ссылкой"""
-    site_id = callback.data.replace("get_site_", "")
-    
-    if site_id not in site_manager.sites:
-        await callback.answer("❌ Дашборд не найден")
-        return
-    
-    site = site_manager.sites[site_id]
-    filename = f"sites/site_{site_id}.html"
-    
-    # Генерируем URL
-    site_url = f"{BASE_URL}/{filename}"
-    
-    try:
-        with open(filename, "rb") as file:
-            await bot.send_document(
-                chat_id=callback.from_user.id,
-                document=types.BufferedInputFile(
-                    file=file.read(),
-                    filename=f"cashapp_{site.name}.html"
-                ),
-                caption=(
-                    f"🌐 <b>{site.name}</b>\n\n"
-                    f"🔗 <b>Ссылка на сайт:</b>\n"
-                    f"<code>{site_url}</code>\n\n"
-                    f"📥 Скачайте файл и откройте в браузере\n"
-                    f"🌐 Или перейдите по ссылке выше"
-                ),
-                parse_mode="HTML"
-            )
-    except Exception as e:
-        await callback.answer(f"Ошибка: {e}")
 
 @dp.callback_query(F.data == "add_accounts")
 async def add_accounts_callback(callback: types.CallbackQuery):
@@ -3674,12 +3126,16 @@ async def process_accounts_input(message: types.Message, state: FSMContext):
     if new_accounts:
         site_manager.add_accounts_to_site(site_id, new_accounts)
     
+    # Получаем обновленный URL
+    site_url = site_manager.get_site_url(site_id)
+    
     # Проверяем выполнение Ограна
     ogran_status = site_manager.get_ogran_status(site_id)
     
     response = f"✅ <b>Добавлено {added_count} аккаунтов</b>\n\n"
     response += f"📊 Всего на дашборде: {len(site.accounts)} аккаунтов\n"
     response += f"🔄 Статус: PENDING (можно изменить)\n"
+    response += f"🔗 <b>Ссылка на дашборд:</b> <code>{site_url}</code>\n"
     
     if ogran_status and ogran_status["active"]:
         response += f"\n🔒 <b>Огран:</b> Активен\n"
@@ -3692,14 +3148,15 @@ async def process_accounts_input(message: types.Message, state: FSMContext):
     response += f"\n🎯 <b>Следующие шаги:</b>\n"
     response += f"• Измените статусы через меню\n"
     response += f"• Добавьте ярлыки к аккаунтам\n"
+    response += f"• Откройте дашборд по ссылке выше\n"
     
     if ogran_status and ogran_status["active"] and not ogran_status["completed"]:
         response += f"• Добавьте еще {ogran_status['remaining']} аккаунтов для снятия Ограна"
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="📁 Получить файл", callback_data=f"get_site_{site_id}"),
-            InlineKeyboardButton(text="🔄 Статусы", callback_data=f"site_actions_{site_id}")
+            InlineKeyboardButton(text="🌐 Открыть дашборд", url=site_url),
+            InlineKeyboardButton(text="🔄 Статусы", callback_data=f"manage_status_site_{site_id}")
         ],
         [
             InlineKeyboardButton(text="🔙 Главная", callback_data="back_to_main")
@@ -3722,6 +3179,7 @@ async def list_sites_callback(callback: types.CallbackQuery):
     for site_id, site in site_manager.sites.items():
         stats = site_manager.calculate_stats(site.accounts)
         ogran_status = site_manager.get_ogran_status(site_id)
+        site_url = site_manager.get_site_url(site_id)
         
         ogran_icon = "🔒" if ogran_status and ogran_status["active"] else "🔓"
         
@@ -3729,12 +3187,8 @@ async def list_sites_callback(callback: types.CallbackQuery):
             f"{ogran_icon} <b>{site.name}</b>\n"
             f"📝 {site.description[:40]}...\n"
             f"📊 {stats['total']} акк. (✅{stats['valid']} 🔄{stats['processing']})\n"
+            f"🔗 <code>{site_url}</code>\n\n"
         )
-        
-        if ogran_status and ogran_status["active"]:
-            sites_text += f"🔒 Огран: {ogran_status['current']}/{ogran_status['required']}\n"
-        
-        sites_text += "\n"
         
         keyboard_buttons.append([
             InlineKeyboardButton(
@@ -3760,29 +3214,28 @@ async def site_actions_callback(callback: types.CallbackQuery):
     site = site_manager.sites[site_id]
     stats = site_manager.calculate_stats(site.accounts)
     ogran_status = site_manager.get_ogran_status(site_id)
-    
-    # Генерируем URL
-    filename = f"sites/site_{site_id}.html"
-    site_url = f"{BASE_URL}/{filename}"
+    site_url = site_manager.get_site_url(site_id)
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🌐 Открыть сайт", url=site_url),
-            InlineKeyboardButton(text="📁 Получить файл", callback_data=f"get_site_{site_id}")
-        ],
-        [
             InlineKeyboardButton(text="📝 Добавить аккаунты", callback_data=f"add_to_site_{site_id}"),
-            InlineKeyboardButton(text="🏷️ Управление ярлыками", callback_data=f"manage_tags_site_{site_id}")
+            InlineKeyboardButton(text="🌐 Открыть дашборд", url=site_url)
         ],
         [
-            InlineKeyboardButton(text="🔄 Управление статусами", callback_data=f"manage_status_site_{site_id}"),
-            InlineKeyboardButton(text="📊 Статистика", callback_data=f"stats_site_{site_id}")
+            InlineKeyboardButton(text="🏷️ Управление ярлыками", callback_data=f"manage_tags_site_{site_id}"),
+            InlineKeyboardButton(text="🔄 Управление статусами", callback_data=f"manage_status_site_{site_id}")
+        ],
+        [
+            InlineKeyboardButton(text="📊 Статистика", callback_data=f"stats_site_{site_id}"),
+            InlineKeyboardButton(text="🔒 Огран", callback_data=f"ogran_menu_{site_id}")
+        ],
+        [
+            InlineKeyboardButton(text="🔗 Получить ссылку", callback_data=f"get_url_{site_id}")
         ],
         [
             InlineKeyboardButton(text="🔙 Назад", callback_data="list_sites")
         ]
     ])
-    
     
     ogran_text = ""
     if ogran_status and ogran_status["active"]:
@@ -3798,28 +3251,622 @@ async def site_actions_callback(callback: types.CallbackQuery):
     await callback.message.answer(
         f"🔧 <b>Управление дашбордом:</b>\n\n"
         f"💎 <b>Название:</b> {site.name}\n"
+        f"🔗 <b>Ссылка:</b> <code>{site_url}</code>\n"
         f"📊 <b>Статистика:</b>\n"
         f"• Аккаунтов: {stats['total']}\n"
         f"• ✅ Valid: {stats['valid']}\n"
         f"• 🔄 Processing: {stats['processing']}\n"
         f"• 🏷️ Ярлыков: {stats['tags_count']}\n"
-        f"• 🖼️ Логотип: Автоматически загружен\n"
         f"{ogran_text}\n"
         f"<b>Выберите действие:</b>",
         reply_markup=keyboard
     )
 
+@dp.callback_query(F.data.startswith("get_url_"))
+async def get_url_callback(callback: types.CallbackQuery):
+    """Получить ссылку на дашборд"""
+    site_id = callback.data.replace("get_url_", "")
+    
+    if site_id not in site_manager.sites:
+        await callback.answer("❌ Дашборд не найден")
+        return
+    
+    site = site_manager.sites[site_id]
+    site_url = site_manager.get_site_url(site_id)
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🌐 Открыть в браузере", url=site_url)
+        ],
+        [
+            InlineKeyboardButton(text="🔙 Назад", callback_data=f"site_actions_{site_id}")
+        ]
+    ])
+    
+    await callback.message.answer(
+        f"🔗 <b>Ссылка на дашборд:</b>\n\n"
+        f"💎 <b>Название:</b> {site.name}\n"
+        f"🔗 <b>Ссылка:</b> <code>{site_url}</code>\n\n"
+        f"📋 Скопируйте ссылку выше и откройте в браузере",
+        reply_markup=keyboard
+    )
+
 @dp.callback_query(F.data.startswith("open_site_"))
 async def open_site_callback(callback: types.CallbackQuery):
-    """Открытие сайта - выдаем файл"""
+    """Открытие сайта - выдаем ссылку"""
     site_id = callback.data.replace("open_site_", "")
     
     if site_id not in site_manager.sites:
         await callback.answer("❌ Дашборд не найден")
         return
     
-    await get_site_file_callback(callback)
+    site = site_manager.sites[site_id]
+    site_url = site_manager.get_site_url(site_id)
+    
+    stats = site_manager.calculate_stats(site.accounts)
+    ogran_status = site_manager.get_ogran_status(site_id)
+    
+    ogran_info = ""
+    if ogran_status and ogran_status["active"]:
+        ogran_info = (
+            f"\n🔒 <b>Огран АКТИВЕН!</b>\n"
+            f"📊 Прогресс: {ogran_status['current']}/{ogran_status['required']}\n"
+            f"⏳ Осталось добавить: {ogran_status['remaining']} аккаунтов\n"
+            f"⚠️ При открытии сайта появится ограничительный экран\n"
+        )
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🌐 Открыть в браузере", url=site_url),
+            InlineKeyboardButton(text="📝 Добавить аккаунты", callback_data=f"add_to_site_{site_id}")
+        ],
+        [
+            InlineKeyboardButton(text="🔧 Управление", callback_data=f"site_actions_{site_id}")
+        ]
+    ])
+    
+    await callback.message.answer(
+        f"🌐 <b>CashApp Pro Dashboard</b>\n\n"
+        f"💎 <b>Название:</b> {site.name}\n"
+        f"🔗 <b>Ссылка:</b> <code>{site_url}</code>\n"
+        f"{ogran_info}\n"
+        f"✨ <b>Особенности:</b>\n"
+        f"• Профессиональный CashApp дизайн\n"
+        f"• Полная адаптивность (ПК + телефон)\n"
+        f"• Анимации и эффекты\n"
+        f"• Автоматический логотип CashApp\n"
+        f"• Система Ограна для верификации\n\n"
+        f"📊 <b>Статистика:</b>\n"
+        f"• Аккаунтов: {stats['total']}\n"
+        f"• ✅ Valid: {stats['valid']}\n"
+        f"• 🔄 Processing: {stats['processing']}",
+        reply_markup=keyboard
+    )
 
+# ========== УПРАВЛЕНИЕ ЯРЛЫКАМИ ==========
+@dp.callback_query(F.data == "manage_tags")
+async def manage_tags_callback(callback: types.CallbackQuery):
+    """Управление ярлыками - выбор сайта"""
+    if not site_manager.sites:
+        await callback.message.answer("❌ У вас нет дашбордов!")
+        return
+    
+    keyboard_buttons = []
+    for site_id, site in site_manager.sites.items():
+        if site.accounts:
+            keyboard_buttons.append([
+                InlineKeyboardButton(
+                    text=f"{site.name} ({len(site.accounts)} акк.)", 
+                    callback_data=f"select_site_for_tags_{site_id}"
+                )
+            ])
+    
+    if not keyboard_buttons:
+        await callback.message.answer("❌ Нет дашбордов с аккаунтами")
+        return
+    
+    keyboard_buttons.append([InlineKeyboardButton(text="🔙 Главная", callback_data="back_to_main")])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    
+    await callback.message.answer(
+        "🏷️ <b>Управление ярлыками (тегами)</b>\n\n"
+        "Выберите дашборд для управления ярлыками:",
+        reply_markup=keyboard
+    )
+
+@dp.callback_query(F.data.startswith("select_site_for_tags_"))
+async def select_site_for_tags_callback(callback: types.CallbackQuery):
+    """Выбор сайта для управления ярлыками"""
+    site_id = callback.data.replace("select_site_for_tags_", "")
+    
+    if site_id not in site_manager.sites:
+        await callback.answer("❌ Дашборд не найден")
+        return
+    
+    site = site_manager.sites[site_id]
+    
+    if not site.accounts:
+        await callback.message.answer("❌ В этом дашборде нет аккаунтов!")
+        return
+    
+    # Создаем клавиатуру с аккаунтами
+    keyboard_buttons = []
+    for i, account in enumerate(site.accounts):
+        email = account.get("email") or account.get("phone") or "Без логина"
+        account_tags = ", ".join(account.get("tags", [])) if account.get("tags") else "Нет тегов"
+        
+        keyboard_buttons.append([
+            InlineKeyboardButton(
+                text=f"#{i+1}: {email[:20]}... [{account_tags[:10]}]", 
+                callback_data=f"select_account_{site_id}_{i}"
+            )
+        ])
+    
+    keyboard_buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data="manage_tags")])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    
+    await callback.message.answer(
+        f"🏷️ <b>Управление ярлыками</b>\n\n"
+        f"💎 <b>Дашборд:</b> {site.name}\n"
+        f"📊 <b>Аккаунтов:</b> {len(site.accounts)}\n\n"
+        f"Выберите аккаунт для добавления/удаления ярлыков:",
+        reply_markup=keyboard
+    )
+
+@dp.callback_query(F.data.startswith("select_account_"))
+async def select_account_for_tags_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Выбор аккаунта для управления ярлыками"""
+    data_parts = callback.data.replace("select_account_", "").split("_")
+    if len(data_parts) < 2:
+        await callback.answer("❌ Ошибка")
+        return
+    
+    site_id = data_parts[0]
+    account_index = int(data_parts[1])
+    
+    if site_id not in site_manager.sites:
+        await callback.answer("❌ Дашборд не найден")
+        return
+    
+    site = site_manager.sites[site_id]
+    
+    if account_index >= len(site.accounts):
+        await callback.message.answer("❌ Аккаунт не найден")
+        return
+    
+    account = site.accounts[account_index]
+    email = account.get("email") or account.get("phone") or "Без логина"
+    current_tags = account.get("tags", [])
+    
+    # Сохраняем данные в состояние
+    await state.update_data(
+        site_id=site_id,
+        account_index=account_index
+    )
+    
+    # Создаем клавиатуру с тегами
+    keyboard_buttons = []
+    
+    # Предустановленные теги
+    for tag in PREDEFINED_TAGS:
+        if tag in current_tags:
+            # Тег уже есть - кнопка для удаления
+            keyboard_buttons.append([
+                InlineKeyboardButton(
+                    text=f"❌ {tag}", 
+                    callback_data=f"remove_tag_{tag}"
+                )
+            ])
+        else:
+            # Тега нет - кнопка для добавления
+            keyboard_buttons.append([
+                InlineKeyboardButton(
+                    text=f"✅ {tag}", 
+                    callback_data=f"add_tag_{tag}"
+                )
+            ])
+    
+    # Добавляем возможность ввести свой тег
+    keyboard_buttons.append([
+        InlineKeyboardButton(text="✏️ Ввести свой тег", callback_data="custom_tag")
+    ])
+    
+    keyboard_buttons.append([
+        InlineKeyboardButton(text="🔙 Назад", callback_data=f"select_site_for_tags_{site_id}")
+    ])
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    
+    tags_text = ", ".join(current_tags) if current_tags else "Нет тегов"
+    
+    await callback.message.answer(
+        f"🏷️ <b>Управление ярлыками</b>\n\n"
+        f"💎 <b>Дашборд:</b> {site.name}\n"
+        f"👤 <b>Аккаунт #{account_index+1}:</b> {email}\n"
+        f"📋 <b>Текущие теги:</b> {tags_text}\n\n"
+        f"<b>Выберите действие:</b>\n"
+        f"• ❌ - удалить существующий тег\n"
+        f"• ✅ - добавить новый тег\n"
+        f"• ✏️ - ввести свой тег",
+        reply_markup=keyboard
+    )
+
+@dp.callback_query(F.data.startswith("add_tag_"))
+async def add_tag_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Добавление тега к аккаунту"""
+    tag = callback.data.replace("add_tag_", "")
+    data = await state.get_data()
+    
+    site_id = data.get("site_id")
+    account_index = data.get("account_index")
+    
+    if not site_id or account_index is None:
+        await callback.answer("❌ Ошибка")
+        return
+    
+    # Добавляем тег
+    success = site_manager.add_tag_to_account(site_id, account_index, tag)
+    
+    if success:
+        await callback.answer(f"✅ Тег '{tag}' добавлен")
+        # Обновляем сообщение
+        await select_account_for_tags_callback(callback, state)
+    else:
+        await callback.answer("❌ Ошибка при добавлении тега")
+
+@dp.callback_query(F.data.startswith("remove_tag_"))
+async def remove_tag_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Удаление тега из аккаунта"""
+    tag = callback.data.replace("remove_tag_", "")
+    data = await state.get_data()
+    
+    site_id = data.get("site_id")
+    account_index = data.get("account_index")
+    
+    if not site_id or account_index is None:
+        await callback.answer("❌ Ошибка")
+        return
+    
+    if site_id not in site_manager.sites:
+        await callback.answer("❌ Дашборд не найден")
+        return
+    
+    site = site_manager.sites[site_id]
+    
+    if account_index >= len(site.accounts):
+        await callback.answer("❌ Аккаунт не найден")
+        return
+    
+    account = site.accounts[account_index]
+    
+    if "tags" in account and tag in account["tags"]:
+        account["tags"].remove(tag)
+        site_manager.save_site_html(site)
+        site_manager.save_to_json()
+        await callback.answer(f"✅ Тег '{tag}' удален")
+        # Обновляем сообщение
+        await select_account_for_tags_callback(callback, state)
+    else:
+        await callback.answer("❌ Тег не найден")
+
+@dp.callback_query(F.data == "custom_tag")
+async def custom_tag_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Ввод пользовательского тега"""
+    await callback.message.answer(
+        "✏️ <b>Введите свой тег:</b>\n\n"
+        "Пример: Verified User, High Balance, US Account\n\n"
+        "❌ /cancel для отмены"
+    )
+    await state.set_state(BotStates.waiting_for_tag)
+
+@dp.message(BotStates.waiting_for_tag)
+async def process_custom_tag(message: types.Message, state: FSMContext):
+    """Обработка пользовательского тега"""
+    if message.text == "/cancel":
+        await state.clear()
+        await message.answer("❌ Отменено")
+        return
+    
+    tag = message.text.strip()
+    
+    if not tag:
+        await message.answer("❌ Тег не может быть пустым")
+        return
+    
+    data = await state.get_data()
+    site_id = data.get("site_id")
+    account_index = data.get("account_index")
+    
+    if not site_id or account_index is None:
+        await message.answer("❌ Ошибка")
+        await state.clear()
+        return
+    
+    # Добавляем тег
+    success = site_manager.add_tag_to_account(site_id, account_index, tag)
+    
+    if success:
+        await message.answer(f"✅ Тег '{tag}' добавлен")
+        # Возвращаемся к управлению тегами
+        await select_account_for_tags_callback(
+            types.CallbackQuery(
+                id="temp",
+                from_user=message.from_user,
+                chat_instance="temp",
+                data=f"select_account_{site_id}_{account_index}"
+            ),
+            state
+        )
+    else:
+        await message.answer("❌ Ошибка при добавлении тега")
+        await state.clear()
+
+# ========== УПРАВЛЕНИЕ СТАТУСАМИ ==========
+@dp.callback_query(F.data == "manage_statuses")
+async def manage_statuses_callback(callback: types.CallbackQuery):
+    """Управление статусами - выбор сайта"""
+    if not site_manager.sites:
+        await callback.message.answer("❌ У вас нет дашбордов!")
+        return
+    
+    keyboard_buttons = []
+    for site_id, site in site_manager.sites.items():
+        if site.accounts:
+            keyboard_buttons.append([
+                InlineKeyboardButton(
+                    text=f"{site.name} ({len(site.accounts)} акк.)", 
+                    callback_data=f"select_site_for_status_{site_id}"
+                )
+            ])
+    
+    if not keyboard_buttons:
+        await callback.message.answer("❌ Нет дашбордов с аккаунтами")
+        return
+    
+    keyboard_buttons.append([InlineKeyboardButton(text="🔙 Главная", callback_data="back_to_main")])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    
+    await callback.message.answer(
+        "🔄 <b>Управление статусами аккаунтов</b>\n\n"
+        "Выберите дашборд для управления статусами:",
+        reply_markup=keyboard
+    )
+
+@dp.callback_query(F.data.startswith("select_site_for_status_"))
+async def select_site_for_status_callback(callback: types.CallbackQuery):
+    """Выбор сайта для управления статусами"""
+    site_id = callback.data.replace("select_site_for_status_", "")
+    
+    if site_id not in site_manager.sites:
+        await callback.answer("❌ Дашборд не найден")
+        return
+    
+    site = site_manager.sites[site_id]
+    
+    if not site.accounts:
+        await callback.message.answer("❌ В этом дашборде нет аккаунтов!")
+        return
+    
+    # Создаем клавиатуру с аккаунтами
+    keyboard_buttons = []
+    for i, account in enumerate(site.accounts):
+        email = account.get("email") or account.get("phone") or "Без логина"
+        status = account.get("status", "pending")
+        status_emoji = {
+            "valid": "✅",
+            "processing": "🔄",
+            "pending": "⏳",
+            "banned": "❌"
+        }.get(status, "❓")
+        
+        keyboard_buttons.append([
+            InlineKeyboardButton(
+                text=f"#{i+1}: {status_emoji} {email[:20]}...", 
+                callback_data=f"select_account_status_{site_id}_{i}"
+            )
+        ])
+    
+    keyboard_buttons.append([InlineKeyboardButton(text="🔙 Назад", callback_data="manage_statuses")])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    
+    await callback.message.answer(
+        f"🔄 <b>Управление статусами</b>\n\n"
+        f"💎 <b>Дашборд:</b> {site.name}\n"
+        f"📊 <b>Аккаунтов:</b> {len(site.accounts)}\n\n"
+        f"Выберите аккаунт для изменения статуса:",
+        reply_markup=keyboard
+    )
+
+@dp.callback_query(F.data.startswith("select_account_status_"))
+async def select_account_for_status_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Выбор аккаунта для изменения статуса"""
+    data_parts = callback.data.replace("select_account_status_", "").split("_")
+    if len(data_parts) < 2:
+        await callback.answer("❌ Ошибка")
+        return
+    
+    site_id = data_parts[0]
+    account_index = int(data_parts[1])
+    
+    if site_id not in site_manager.sites:
+        await callback.answer("❌ Дашборд не найден")
+        return
+    
+    site = site_manager.sites[site_id]
+    
+    if account_index >= len(site.accounts):
+        await callback.message.answer("❌ Аккаунт не найден")
+        return
+    
+    account = site.accounts[account_index]
+    email = account.get("email") or account.get("phone") or "Без логина"
+    current_status = account.get("status", "pending")
+    
+    # Сохраняем данные в состояние
+    await state.update_data(
+        site_id=site_id,
+        account_index=account_index
+    )
+    
+    # Создаем клавиатуру со статусами
+    keyboard_buttons = []
+    for status in ACCOUNT_STATUSES:
+        status_emoji = {
+            "valid": "✅",
+            "processing": "🔄",
+            "pending": "⏳",
+            "banned": "❌"
+        }.get(status, "❓")
+        
+        status_text = {
+            "valid": "Valid (✅)",
+            "processing": "Processing (🔄)",
+            "pending": "Pending (⏳)",
+            "banned": "Banned (❌)"
+        }.get(status, status)
+        
+        if status == current_status:
+            keyboard_buttons.append([
+                InlineKeyboardButton(
+                    text=f"● {status_text}", 
+                    callback_data=f"current_status_{status}"
+                )
+            ])
+        else:
+            keyboard_buttons.append([
+                InlineKeyboardButton(
+                    text=f"{status_emoji} {status_text}", 
+                    callback_data=f"set_status_{status}"
+                )
+            ])
+    
+    keyboard_buttons.append([
+        InlineKeyboardButton(text="🔙 Назад", callback_data=f"select_site_for_status_{site_id}")
+    ])
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    
+    await callback.message.answer(
+        f"🔄 <b>Изменение статуса аккаунта</b>\n\n"
+        f"💎 <b>Дашборд:</b> {site.name}\n"
+        f"👤 <b>Аккаунт #{account_index+1}:</b> {email}\n"
+        f"📊 <b>Текущий статус:</b> {current_status.upper()}\n\n"
+        f"<b>Выберите новый статус:</b>",
+        reply_markup=keyboard
+    )
+
+@dp.callback_query(F.data.startswith("set_status_"))
+async def set_status_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Установка нового статуса"""
+    status = callback.data.replace("set_status_", "")
+    data = await state.get_data()
+    
+    site_id = data.get("site_id")
+    account_index = data.get("account_index")
+    
+    if not site_id or account_index is None:
+        await callback.answer("❌ Ошибка")
+        return
+    
+    # Обновляем статус
+    success = site_manager.update_account_status(site_id, account_index, status)
+    
+    if success:
+        status_emoji = {
+            "valid": "✅",
+            "processing": "🔄",
+            "pending": "⏳",
+            "banned": "❌"
+        }.get(status, "❓")
+        
+        await callback.answer(f"{status_emoji} Статус изменен на {status}")
+        # Обновляем сообщение
+        await select_account_for_status_callback(callback, state)
+    else:
+        await callback.answer("❌ Ошибка при изменении статуса")
+
+# ========== КОМАНДА ДЛЯ УПРАВЛЕНИЯ СТАТУСАМИ ЧЕРЕЗ САЙТ ==========
+@dp.callback_query(F.data.startswith("manage_status_site_"))
+async def manage_status_site_callback(callback: types.CallbackQuery):
+    """Управление статусами через меню сайта"""
+    site_id = callback.data.replace("manage_status_site_", "")
+    await select_site_for_status_callback(
+        types.CallbackQuery(
+            id=callback.id,
+            from_user=callback.from_user,
+            chat_instance=callback.chat_instance,
+            data=f"select_site_for_status_{site_id}"
+        )
+    )
+
+# ========== КОМАНДА ДЛЯ УПРАВЛЕНИЯ ЯРЛЫКАМИ ЧЕРЕЗ САЙТ ==========
+@dp.callback_query(F.data.startswith("manage_tags_site_"))
+async def manage_tags_site_callback(callback: types.CallbackQuery):
+    """Управление ярлыками через меню сайта"""
+    site_id = callback.data.replace("manage_tags_site_", "")
+    await select_site_for_tags_callback(
+        types.CallbackQuery(
+            id=callback.id,
+            from_user=callback.from_user,
+            chat_instance=callback.chat_instance,
+            data=f"select_site_for_tags_{site_id}"
+        )
+    )
+
+# ========== КОМАНДА ДЛЯ СТАТИСТИКИ САЙТА ==========
+@dp.callback_query(F.data.startswith("stats_site_"))
+async def stats_site_callback(callback: types.CallbackQuery):
+    """Статистика сайта"""
+    site_id = callback.data.replace("stats_site_", "")
+    
+    if site_id not in site_manager.sites:
+        await callback.answer("❌ Дашборд не найден")
+        return
+    
+    site = site_manager.sites[site_id]
+    stats = site_manager.calculate_stats(site.accounts)
+    ogran_status = site_manager.get_ogran_status(site_id)
+    site_url = site_manager.get_site_url(site_id)
+    
+    ogran_text = ""
+    if ogran_status and ogran_status["active"]:
+        progress_percent = int((ogran_status["current"] / ogran_status["required"]) * 100) if ogran_status["required"] > 0 else 0
+        ogran_text = (
+            f"\n🔒 <b>Огран:</b> Активен\n"
+            f"📊 Прогресс: {ogran_status['current']}/{ogran_status['required']}\n"
+            f"📈 {progress_percent}% выполнено\n"
+            f"⏳ Осталось: {ogran_status['remaining']} аккаунтов\n"
+        )
+        if ogran_status["completed"]:
+            ogran_text += f"✅ <b>Условия выполнены!</b>\n"
+    else:
+        ogran_text = f"\n🔓 <b>Огран:</b> Не активен\n"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🌐 Открыть дашборд", url=site_url),
+            InlineKeyboardButton(text="🔙 Назад", callback_data=f"site_actions_{site_id}")
+        ]
+    ])
+    
+    await callback.message.answer(
+        f"📊 <b>Статистика дашборда</b>\n\n"
+        f"💎 <b>Название:</b> {site.name}\n"
+        f"🔗 <b>Ссылка:</b> <code>{site_url}</code>\n"
+        f"📅 <b>Создан:</b> {site.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
+        f"📈 <b>Общая статистика:</b>\n"
+        f"• Всего аккаунтов: {stats['total']}\n"
+        f"• ✅ Valid: {stats['valid']}\n"
+        f"• 🔄 Processing: {stats['processing']}\n"
+        f"• ⏳ Pending: {stats['pending']}\n"
+        f"• ❌ Banned: {stats['banned']}\n"
+        f"• 🏷️ Ярлыков: {stats['tags_count']}\n"
+        f"{ogran_text}\n"
+        f"📋 <b>Описание:</b> {site.description}",
+        reply_markup=keyboard
+    )
+
+# ========== УПРАВЛЕНИЕ ОГРАНОМ (уже было в предыдущем коде) ==========
 @dp.callback_query(F.data == "manage_ogran")
 async def manage_ogran_callback(callback: types.CallbackQuery):
     """Управление Ограном"""
@@ -3978,6 +4025,7 @@ async def process_ogran_accounts(message: types.Message, state: FSMContext):
         
         site = site_manager.sites[site_id]
         stats = site_manager.calculate_stats(site.accounts)
+        site_url = site_manager.get_site_url(site_id)
         
         # Активируем Огран
         success = site_manager.activate_ogran(site_id, required_accounts)
@@ -3986,6 +4034,7 @@ async def process_ogran_accounts(message: types.Message, state: FSMContext):
             await message.answer(
                 f"✅ <b>Огран активирован!</b>\n\n"
                 f"💎 <b>Дашборд:</b> {site.name}\n"
+                f"🔗 <b>Ссылка:</b> <code>{site_url}</code>\n"
                 f"🎯 <b>Требуется добавить:</b> {required_accounts} аккаунтов\n"
                 f"📊 <b>Текущее количество:</b> {stats['total']} аккаунтов\n"
                 f"⏳ <b>Осталось добавить:</b> {required_accounts} аккаунтов\n\n"
@@ -3995,7 +4044,7 @@ async def process_ogran_accounts(message: types.Message, state: FSMContext):
                 f"• Прогресс отображается в реальном времени\n"
                 f"• После выполнения условий можно снять Огран\n\n"
                 f"🎯 <b>Следующие шаги:</b>\n"
-                f"1. Скачайте обновленный файл дашборда\n"
+                f"1. Откройте дашборд по ссылке для проверки\n"
                 f"2. Добавляйте аккаунты через бота\n"
                 f"3. Следите за прогрессом"
             )
@@ -4020,11 +4069,13 @@ async def ogran_status_callback(callback: types.CallbackQuery):
     site = site_manager.sites[site_id]
     stats = site_manager.calculate_stats(site.accounts)
     ogran_status = site_manager.get_ogran_status(site_id)
+    site_url = site_manager.get_site_url(site_id)
     
     if not ogran_status or not ogran_status["active"]:
         await callback.message.answer(
             f"🔓 <b>Огран не активен</b>\n\n"
             f"💎 <b>Дашборд:</b> {site.name}\n"
+            f"🔗 <b>Ссылка:</b> <code>{site_url}</code>\n"
             f"📊 <b>Аккаунтов:</b> {stats['total']}\n\n"
             f"Для активации Ограна используйте меню управления."
         )
@@ -4035,6 +4086,7 @@ async def ogran_status_callback(callback: types.CallbackQuery):
     status_text = (
         f"🔒 <b>Статус Ограна</b>\n\n"
         f"💎 <b>Дашборд:</b> {site.name}\n"
+        f"🔗 <b>Ссылка:</b> <code>{site_url}</code>\n"
         f"🎯 <b>Требуется добавить:</b> {ogran_status['required']} аккаунтов\n"
         f"📊 <b>Уже добавлено:</b> {ogran_status['current']} аккаунтов\n"
         f"⏳ <b>Осталось добавить:</b> {ogran_status['remaining']} аккаунтов\n"
@@ -4046,7 +4098,7 @@ async def ogran_status_callback(callback: types.CallbackQuery):
         status_text += f"🎯 <b>Следующие шаги:</b>\n"
         status_text += f"• Перейдите в меню Ограна\n"
         status_text += f"• Нажмите 'Снять Огран'\n"
-        status_text += f"• Скачайте обновленный файл дашборда"
+        status_text += f"• Сайт станет доступен без ограничений"
     else:
         status_text += f"⚠️ <b>Ограничение активно</b>\n\n"
         status_text += f"🎯 <b>Как снять Огран:</b>\n"
@@ -4057,7 +4109,7 @@ async def ogran_status_callback(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="📝 Добавить аккаунты", callback_data=f"add_to_site_{site_id}"),
-            InlineKeyboardButton(text="📁 Получить файл", callback_data=f"get_site_{site_id}")
+            InlineKeyboardButton(text="🌐 Открыть дашборд", url=site_url)
         ],
         [
             InlineKeyboardButton(text="🔙 Назад", callback_data=f"ogran_menu_{site_id}")
@@ -4078,6 +4130,7 @@ async def remove_ogran_callback(callback: types.CallbackQuery):
     site = site_manager.sites[site_id]
     stats = site_manager.calculate_stats(site.accounts)
     ogran_status = site_manager.get_ogran_status(site_id)
+    site_url = site_manager.get_site_url(site_id)
     
     if not ogran_status or not ogran_status["active"]:
         await callback.message.answer("❌ Огран не активен на этом дашборде")
@@ -4094,6 +4147,7 @@ async def remove_ogran_callback(callback: types.CallbackQuery):
         await callback.message.answer(
             f"✅ <b>Огран снят!</b>\n\n"
             f"💎 <b>Дашборд:</b> {site.name}\n"
+            f"🔗 <b>Ссылка:</b> <code>{site_url}</code>\n"
             f"📊 <b>Всего аккаунтов:</b> {stats['total']}\n"
             f"🎯 <b>Добавлено для Ограна:</b> {ogran_status['current']} аккаунтов\n"
             f"✅ <b>Требование выполнено:</b> {ogran_status['required']} аккаунтов\n\n"
@@ -4102,7 +4156,7 @@ async def remove_ogran_callback(callback: types.CallbackQuery):
             f"• Все функции доступны\n"
             f"• Можно свободно пользоваться сайтом\n\n"
             f"🎯 <b>Следующие шаги:</b>\n"
-            f"• Скачайте обновленный файл дашборда\n"
+            f"• Откройте дашборд по ссылке для проверки\n"
             f"• Продолжайте добавлять аккаунты\n"
             f"• Настройте статусы и ярлыки"
         )
@@ -4119,6 +4173,7 @@ async def force_remove_ogran_callback(callback: types.CallbackQuery):
         return
     
     site = site_manager.sites[site_id]
+    site_url = site_manager.get_site_url(site_id)
     
     # Снимаем Огран
     success = site_manager.deactivate_ogran(site_id)
@@ -4127,6 +4182,7 @@ async def force_remove_ogran_callback(callback: types.CallbackQuery):
         await callback.message.answer(
             f"✅ <b>Огран принудительно снят!</b>\n\n"
             f"💎 <b>Дашборд:</b> {site.name}\n"
+            f"🔗 <b>Ссылка:</b> <code>{site_url}</code>\n"
             f"⚠️ <b>Внимание:</b> Огран снят без выполнения условий!\n\n"
             f"✨ <b>Дашборд теперь полностью доступен!</b>\n"
             f"• Ограничительный экран убран\n"
@@ -4148,6 +4204,7 @@ async def change_ogran_callback(callback: types.CallbackQuery, state: FSMContext
     site = site_manager.sites[site_id]
     stats = site_manager.calculate_stats(site.accounts)
     ogran_status = site_manager.get_ogran_status(site_id)
+    site_url = site_manager.get_site_url(site_id)
     
     await state.update_data(site_id=site_id)
     
@@ -4157,6 +4214,7 @@ async def change_ogran_callback(callback: types.CallbackQuery, state: FSMContext
     await callback.message.answer(
         f"🔄 <b>Изменение требований Ограна</b>\n\n"
         f"💎 <b>Дашборд:</b> {site.name}\n"
+        f"🔗 <b>Ссылка:</b> <code>{site_url}</code>\n"
         f"📊 <b>Текущее количество аккаунтов:</b> {stats['total']}\n"
         f"🎯 <b>Текущее требование:</b> {current_required} аккаунтов\n"
         f"📈 <b>Уже добавлено:</b> {current_count} аккаунтов\n\n"
@@ -4198,6 +4256,7 @@ async def main():
     site_manager.load_from_json()
     
     print("🤖 Telegram Bot - CashApp Pro Dashboard")
+    print(f"🌐 Базовая ссылка для дашбордов: {SITE_BASE_URL}")
     print("🔄 Режим polling (локальная разработка)")
     
     # Удаляем вебхук для polling
