@@ -1,5 +1,4 @@
-[file name]: main.py
-[file content begin]
+
 import asyncio
 import logging
 from datetime import datetime
