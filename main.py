@@ -3577,7 +3577,7 @@ async def select_site_for_tags_callback(callback: types.CallbackQuery):
         keyboard_buttons.append([
             InlineKeyboardButton(
                 text=f"#{i+1}: {email[:20]}... [{account_tags[:10]}]", 
-                callback_data=f"select_account_{site_id}_{i}"
+                callback_data=f"select_account_{site_id}|{i}"
             )
         ])
     
@@ -3595,9 +3595,10 @@ async def select_site_for_tags_callback(callback: types.CallbackQuery):
 @dp.callback_query(F.data.startswith("select_account_"))
 async def select_account_for_tags_callback(callback: types.CallbackQuery, state: FSMContext):
     """Выбор аккаунта для управления ярлыками"""
-    data_parts = callback.data.replace("select_account_", "").split("_")
-    if len(data_parts) < 2:
-        await callback.answer("❌ Ошибка")
+    data_parts = callback.data.replace("select_account_", "").split("|")
+        if len(data_parts) == 2:
+            site_id = data_parts[0]
+            account_index = int(data_parts[1])
         return
     
     site_id = data_parts[0]
@@ -3857,17 +3858,31 @@ async def select_site_for_status_callback(callback: types.CallbackQuery):
         reply_markup=keyboard
     )
 
-@dp.callback_query(F.data.startswith("select_account_status_"))
-async def select_account_for_status_callback(callback: types.CallbackQuery, state: FSMContext):
-    """Выбор аккаунта для изменения статуса"""
+@dp.callback_query(F.data.startswith("select_account_"))
+async def select_account_for_tags_callback(callback: types.CallbackQuery, state: FSMContext):
+    """Выбор аккаунта для управления ярлыками"""
     try:
-        data_parts = callback.data.replace("select_account_status_", "").split("_")
-        if len(data_parts) < 2:
-            await callback.answer("❌ Ошибка формата данных")
+        # Убираем префикс
+        data_str = callback.data.replace("select_account_", "")
+        
+        # Разделяем на части - последняя часть должна быть индексом аккаунта
+        parts = data_str.split("_")
+        
+        if len(parts) < 2:
+            await callback.answer("❌ Ошибка: неверный формат данных")
             return
         
-        site_id = data_parts[0]
-        account_index = int(data_parts[1])
+        # Последняя часть - индекс аккаунта
+        account_index = int(parts[-1])
+        
+        # Все остальные части объединяем обратно в site_id
+        # (на случай, если site_id содержит символы '_')
+        site_id_parts = parts[:-1]
+        site_id = "_".join(site_id_parts)
+        
+        if not site_id:
+            await callback.answer("❌ Ошибка: не найден ID сайта")
+            return
         
         if site_id not in site_manager.sites:
             await callback.answer("❌ Дашборд не найден")
@@ -3876,15 +3891,12 @@ async def select_account_for_status_callback(callback: types.CallbackQuery, stat
         site = site_manager.sites[site_id]
         
         if account_index >= len(site.accounts):
-            if callback.message:
-                await callback.message.answer("❌ Аккаунт не найден")
-            else:
-                await callback.answer("❌ Аккаунт не найден", show_alert=True)
+            await callback.message.answer("❌ Аккаунт не найден")
             return
         
         account = site.accounts[account_index]
         email = account.get("email") or account.get("phone") or "Без логина"
-        current_status = account.get("status", "pending")
+        current_tags = account.get("tags", [])
         
         # Сохраняем данные в состояние
         await state.update_data(
@@ -3892,70 +3904,58 @@ async def select_account_for_status_callback(callback: types.CallbackQuery, stat
             account_index=account_index
         )
         
-        # Создаем клавиатуру со статусами
+        # Создаем клавиатуру с тегами
         keyboard_buttons = []
-        for status in ACCOUNT_STATUSES:
-            status_emoji = {
-                "valid": "✅",
-                "processing": "🔄",
-                "pending": "⏳",
-                "banned": "❌"
-            }.get(status, "❓")
-            
-            status_text = {
-                "valid": "Valid (✅)",
-                "processing": "Processing (🔄)",
-                "pending": "Pending (⏳)",
-                "banned": "Banned (❌)"
-            }.get(status, status)
-            
-            if status == current_status:
+        
+        # Предустановленные теги
+        for tag in PREDEFINED_TAGS:
+            if tag in current_tags:
+                # Тег уже есть - кнопка для удаления
                 keyboard_buttons.append([
                     InlineKeyboardButton(
-                        text=f"● {status_text} (текущий)", 
-                        callback_data=f"current_status_{status}"
+                        text=f"❌ {tag}", 
+                        callback_data=f"remove_tag_{tag}"
                     )
                 ])
             else:
+                # Тега нет - кнопка для добавления
                 keyboard_buttons.append([
                     InlineKeyboardButton(
-                        text=f"{status_emoji} {status_text}", 
-                        callback_data=f"set_status_{status}"
+                        text=f"✅ {tag}", 
+                        callback_data=f"add_tag_{tag}"
                     )
                 ])
         
+        # Добавляем возможность ввести свой тег
         keyboard_buttons.append([
-            InlineKeyboardButton(text="🔙 Назад", callback_data=f"manage_status_site_{site_id}")
+            InlineKeyboardButton(text="✏️ Ввести свой тег", callback_data="custom_tag")
+        ])
+        
+        keyboard_buttons.append([
+            InlineKeyboardButton(text="🔙 Назад", callback_data=f"manage_tags_site_{site_id}")
         ])
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
         
-        # Проверяем, можно ли редактировать сообщение
-        try:
-            await callback.message.edit_text(
-                f"🔄 <b>Изменение статуса аккаунта</b>\n\n"
-                f"💎 <b>Дашборд:</b> {site.name}\n"
-                f"👤 <b>Аккаунт #{account_index+1}:</b> {email}\n"
-                f"📊 <b>Текущий статус:</b> {current_status.upper()}\n\n"
-                f"<b>Выберите новый статус:</b>",
-                reply_markup=keyboard
-            )
-        except:
-            # Если нельзя редактировать, отправляем новое сообщение
-            await callback.message.answer(
-                f"🔄 <b>Изменение статуса аккаунта</b>\n\n"
-                f"💎 <b>Дашборд:</b> {site.name}\n"
-                f"👤 <b>Аккаунт #{account_index+1}:</b> {email}\n"
-                f"📊 <b>Текущий статус:</b> {current_status.upper()}\n\n"
-                f"<b>Выберите новый статус:</b>",
-                reply_markup=keyboard
-            )
+        tags_text = ", ".join(current_tags) if current_tags else "Нет тегов"
+        
+        await callback.message.edit_text(
+            f"🏷️ <b>Управление ярлыками</b>\n\n"
+            f"💎 <b>Дашборд:</b> {site.name}\n"
+            f"👤 <b>Аккаунт #{account_index+1}:</b> {email}\n"
+            f"📋 <b>Текущие теги:</b> {tags_text}\n\n"
+            f"<b>Выберите действие:</b>\n"
+            f"• ❌ - удалить существующий тег\n"
+            f"• ✅ - добавить новый тег\n"
+            f"• ✏️ - ввести свой тег",
+            reply_markup=keyboard
+        )
     
     except ValueError as e:
-        logger.error(f"Ошибка в select_account_for_status_callback: {e}")
+        logger.error(f"Ошибка в select_account_for_tags_callback: {e}")
         await callback.answer("❌ Ошибка: неверный формат данных")
     except Exception as e:
-        logger.error(f"Ошибка в select_account_for_status_callback: {e}")
+        logger.error(f"Ошибка в select_account_for_tags_callback: {e}")
         await callback.answer("❌ Произошла ошибка")
 
 @dp.callback_query(F.data.startswith("current_status_"))
@@ -4073,7 +4073,7 @@ async def manage_tags_site_callback(callback: types.CallbackQuery):
         keyboard_buttons.append([
             InlineKeyboardButton(
                 text=f"#{i+1}: {email[:20]}... [{account_tags[:10]}]", 
-                callback_data=f"select_account_{site_id}_{i}"
+                callback_data=f"select_account_{site_id}|{i}"
             )
         ])
     
